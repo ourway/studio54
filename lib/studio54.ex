@@ -1,18 +1,181 @@
 defmodule Studio54 do
   @moduledoc """
-  Documentation for Studio54.
+  Studio54 is an effort to make use of HUAWEI LTE modems to act as a
+  SMS gateway.
   """
+  require Exml
+  @name Application.get_env(:studio54, :name)
+  @password Application.get_env(:studio54, :password)
+  @host Application.get_env(:studio54, :host)
+  #  @mno Application.get_env(:studio54, :mno)
+  @base_url "http://#{@host}"
+  @loginpath "#{@base_url}/api/user/login"
+  #  @remindpath "#{@base_url}/api/user/remind"
+  @tokenpath "http://#{@host}/api/webserver/SesTokInfo"
+  @smspath "http://#{@host}/api/sms/send-sms"
+  @countpath "http://#{@host}/api/sms/sms-count"
+  @listpath "http://#{@host}/api/sms/sms-list"
 
   @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Studio54.hello()
-      :world
-
+    This hash is special format used by HUAWEI modems.
+    basicly, it's lower case of sha256 hash.
   """
-  def hello do
-    :world
+  def gethash(inp) do
+    :crypto.hash(:sha256, inp) |> Base.encode16() |> String.downcase()
+  end
+
+  @doc """
+    Get SessionID cookie and Token.
+  """
+  def get_ses_token_info do
+    doc = HTTPotion.get(@tokenpath) |> Map.get(:body) |> Exml.parse()
+    sid = doc |> Exml.get("//SesInfo")
+    token = doc |> Exml.get("//TokInfo")
+    %{sid: sid, token: token}
+  end
+
+  def login do
+    stdata = get_ses_token_info()
+    passhash = gethash(@password) |> Base.encode64()
+    psd = gethash(@name <> passhash <> stdata.token) |> Base.encode64()
+
+    postdata = """
+      <?xml version: "1.0" encoding="UTF-8"?>
+        <request>
+          <Username>#{@name}</Username>
+          <Password>#{psd}</Password>
+          <password_type>4</password_type>
+        </request>
+    """
+
+    login_headers = [
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      Origin: "http://#{@host}",
+      Referer: "http://#{@host}/html/home.html",
+      "X-Requested-With": "XMLHttpRequest",
+      Cookie: stdata.sid,
+      __RequestVerificationToken: stdata.token
+    ]
+
+    %HTTPotion.Response{
+      :body => _body,
+      :headers => %HTTPotion.Headers{
+        :hdrs => %{
+          "set-cookie" => cookie,
+          "__requestverificationtokenone" => token1,
+          "__requestverificationtokentwo" => token2
+        }
+      },
+      :status_code => 200
+    } = HTTPotion.post(@loginpath, body: postdata, headers: login_headers)
+
+    %{sid: cookie, token1: token1, token2: token2}
+  end
+
+  def get_headers do
+    %{:sid => sid, :token1 => token1} = login()
+
+    [
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      Origin: "http://#{@host}",
+      Referer: "http://#{@host}/html/home.html",
+      "X-Requested-With": "XMLHttpRequest",
+      Cookie: sid,
+      __RequestVerificationToken: token1
+    ]
+  end
+
+  def send_sms(msisdn, text) do
+    headers = get_headers()
+
+    sms_data = """
+    <?xml version: "1.0" encoding="UTF-8"?>
+    <request>
+    <Index>-1</Index>
+    <Priority>1000</Priority>
+    <Phones>
+    <Phone>#{msisdn}</Phone>
+    </Phones>
+    <Sca></Sca>
+    <Content>#{text}</Content>
+    <Length>#{text |> String.length()}</Length>
+    <Reserved>1</Reserved>
+    <Date>#{Timex.local() |> DateTime.to_string() |> binary_part(0, 19)}</Date>
+    </request>
+    """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@smspath, body: sms_data, headers: headers)
+
+    case body |> Exml.parse() |> Exml.get("//response") do
+      "OK" ->
+        {:ok, true}
+
+      nil ->
+        {:error, false}
+    end
+  end
+
+  def get_new_count do
+    headers = get_headers()
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.get(@countpath, headers: headers)
+
+    {:ok, body |> Exml.parse() |> Exml.get("//LocalUnread") |> String.to_integer()}
+  end
+
+  def get_inbox do
+    headers = get_headers()
+
+    postdata = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <request>
+       <PageIndex>1</PageIndex>
+       <ReadCount>20</ReadCount>
+       <BoxType>1</BoxType>
+       <SortType>0</SortType>
+       <Ascending>0</Ascending>
+       <UnreadPreferred>1</UnreadPreferred>
+    </request>
+    """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@listpath, body: postdata, headers: headers)
+
+    doc = body |> Exml.parse()
+
+    {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
+     case doc |> Exml.get("//Count") |> String.to_integer() do
+       0 ->
+         []
+
+       _ ->
+         doc
+         |> Exml.get("//Message/Index")
+         |> Enum.map(fn i ->
+           %{
+             msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone"),
+             body: doc |> Exml.get("//Message[Index='#{i}']//Content"),
+             datetime:
+               doc |> Exml.get("//Message[Index='#{i}']//Date") |> NaiveDateTime.from_iso8601!(),
+             index: i |> String.to_integer()
+           }
+         end)
+     end}
+  end
+
+  def empty_index do
+    {:ok, count, messages} = get_inbox()
+
+    indexes =
+      messages
+      |> Enum.map(fn m ->
+        "<Index>#{m.index}</Index>"
+      end) |> Enum.join
+    postdata = """
+    <?xml version: "1.0" encoding="UTF-8"?>
+      <request>#{indexes}</request>
+    """
   end
 end

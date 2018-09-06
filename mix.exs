@@ -4,18 +4,15 @@ defmodule Studio54.MixProject do
   def project do
     [
       app: :studio54,
-      version: "0.1.0",
+      version: "0.1.1",
       description: "SMS sending with HUAWEI E5577Cs-603 LTE modems",
-      build_embedded: Mix.env == :prod,
+      build_embedded: Mix.env() == :prod,
       package: package(),
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
   end
-
-
-
 
   defp package do
     # These are the default files included in the package
@@ -24,15 +21,14 @@ defmodule Studio54.MixProject do
       files: ["lib", "mix.exs", "README*", "config", "test"],
       maintainers: ["Farsheed Ashouri"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/ourway/studio54"}
+      links: %{"REPO" => "https://rashavas.visualstudio.com/studio54"}
     ]
   end
-
 
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :timex],
+      extra_applications: [:logger, :timex, :inets, :ssl, :ibrowse, :httpotion, :exml],
       mod: {Studio54.Application, []}
     ]
   end
@@ -42,7 +38,8 @@ defmodule Studio54.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:timex, "~> 3.1"},
-      {:ibrowse, "~> 4.4"}
+      {:exml, "~> 0.1.1"},
+      {:httpotion, "~> 3.1"}
     ]
   end
 end
