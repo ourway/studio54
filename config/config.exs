@@ -25,6 +25,8 @@ config :studio54,
   host: "192.168.10.1",
   name: "admin",
   password: "admin",
+  delivery_webhook: "http://localhost:8080",
+  mo_webhook: "http://localhost:8081",
   mno: "IR-TCI"
 
 # It is also possible to import configuration files, relative to this

@@ -15,6 +15,8 @@ defmodule Studio54 do
   @smspath "http://#{@host}/api/sms/send-sms"
   @countpath "http://#{@host}/api/sms/sms-count"
   @listpath "http://#{@host}/api/sms/sms-list"
+  @deletepath "http://#{@host}/api/sms/delete-sms"
+  @readpath "http://#{@host}/api/sms/set-read"
 
   @doc """
     This hash is special format used by HUAWEI modems.
@@ -125,15 +127,44 @@ defmodule Studio54 do
     {:ok, body |> Exml.parse() |> Exml.get("//LocalUnread") |> String.to_integer()}
   end
 
+  def mark_as_read(idxs) do
+    headers = get_headers()
+    indexes = idxs |> Enum.map(fn i -> "<Index>#{i}</Index>" end)
+
+    postdata = """
+      <?xml version="1.0" encoding="UTF-8"?>
+        <request>#{indexes}</request>
+    """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@readpath, body: postdata, headers: headers)
+
+    case body |> Exml.parse() |> Exml.get("//response") do
+      "OK" ->
+        {:ok, true}
+
+      nil ->
+        {:error, false}
+    end
+  end
+
   def get_inbox do
+    get_box(1)
+  end
+
+  def get_outbox do
+    get_box(2)
+  end
+
+  def get_box(box) do
     headers = get_headers()
 
     postdata = """
     <?xml version="1.0" encoding="UTF-8"?>
     <request>
        <PageIndex>1</PageIndex>
-       <ReadCount>20</ReadCount>
-       <BoxType>1</BoxType>
+       <ReadCount>50</ReadCount>
+       <BoxType>#{box}</BoxType>
        <SortType>0</SortType>
        <Ascending>0</Ascending>
        <UnreadPreferred>1</UnreadPreferred>
@@ -149,6 +180,16 @@ defmodule Studio54 do
      case doc |> Exml.get("//Count") |> String.to_integer() do
        0 ->
          []
+
+       1 ->
+         [
+           %{
+             msisdn: doc |> Exml.get("//Message//Phone"),
+             body: doc |> Exml.get("//Message//Content"),
+             datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
+             index: doc |> Exml.get("//Message/Index") |> String.to_integer()
+           }
+         ]
 
        _ ->
          doc
@@ -166,16 +207,32 @@ defmodule Studio54 do
   end
 
   def empty_index do
-    {:ok, count, messages} = get_inbox()
+    {:ok, _count, messages} = get_inbox()
+    {:ok, _count, messages2} = get_outbox()
+    {:ok, _count, messages3} = get_box(3)
+    headers = get_headers()
 
     indexes =
-      messages
+      (messages ++ messages2 ++ messages3)
       |> Enum.map(fn m ->
         "<Index>#{m.index}</Index>"
-      end) |> Enum.join
+      end)
+      |> Enum.join()
+
     postdata = """
     <?xml version: "1.0" encoding="UTF-8"?>
       <request>#{indexes}</request>
     """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@deletepath, body: postdata, headers: headers)
+
+    case body |> Exml.parse() |> Exml.get("//response") do
+      "OK" ->
+        {:ok, true}
+
+      nil ->
+        {:error, false}
+    end
   end
 end

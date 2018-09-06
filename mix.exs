@@ -28,7 +28,7 @@ defmodule Studio54.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :timex, :inets, :ssl, :ibrowse, :httpotion, :exml],
+      extra_applications: [:logger, :timex, :inets, :ssl, :ibrowse, :httpotion, :exml, :persian],
       mod: {Studio54.Application, []}
     ]
   end
@@ -38,6 +38,7 @@ defmodule Studio54.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:timex, "~> 3.1"},
+      {:persian, "~> 0.1.4"},
       {:exml, "~> 0.1.1"},
       {:httpotion, "~> 3.1"}
     ]
