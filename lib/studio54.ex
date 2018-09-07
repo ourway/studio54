@@ -2,6 +2,7 @@ defmodule Studio54 do
   @moduledoc """
   Studio54 is an effort to make use of HUAWEI LTE modems to act as a
   SMS gateway.
+  iex > Studio54.Starter.start_worker
   """
   require Exml
   @name Application.get_env(:studio54, :name)

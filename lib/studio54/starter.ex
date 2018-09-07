@@ -30,7 +30,7 @@ defmodule Studio54.Starter do
     {:noreply, state}
   end
 
-  def handle_info({:DOWN, _ref, :process, worker, reason}, state) do
+  def handle_info({:DOWN, _ref, :process, _worker, _reason}, state) do
     Logger.warn("Worker went down! Starting again")
     start_worker()
     {:noreply, state}
