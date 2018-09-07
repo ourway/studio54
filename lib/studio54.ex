@@ -148,8 +148,16 @@ defmodule Studio54 do
     end
   end
 
-  def get_inbox do
-    get_box(1)
+  def get_inbox(new: new) do
+    case new do
+      true ->
+        {:ok, _, msgs} = get_box(1)
+        nm = msgs |> Enum.filter(fn m -> m.new == true end)
+        {:ok, nm |> length, nm}
+
+      false ->
+        get_box(1)
+    end
   end
 
   def get_outbox do
@@ -187,7 +195,8 @@ defmodule Studio54 do
              msisdn: doc |> Exml.get("//Message//Phone"),
              body: doc |> Exml.get("//Message//Content"),
              datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
-             index: doc |> Exml.get("//Message/Index") |> String.to_integer()
+             index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
+             new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
            }
          ]
 
@@ -200,14 +209,15 @@ defmodule Studio54 do
              body: doc |> Exml.get("//Message[Index='#{i}']//Content"),
              datetime:
                doc |> Exml.get("//Message[Index='#{i}']//Date") |> NaiveDateTime.from_iso8601!(),
-             index: i |> String.to_integer()
+             index: i |> String.to_integer(),
+             new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
            }
          end)
      end}
   end
 
   def empty_index do
-    {:ok, _count, messages} = get_inbox()
+    {:ok, _count, messages} = get_inbox(new: false)
     {:ok, _count, messages2} = get_outbox()
     {:ok, _count, messages3} = get_box(3)
     headers = get_headers()
