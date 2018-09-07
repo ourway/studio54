@@ -23,15 +23,16 @@ defmodule Studio54.Worker do
   end
 
   def handle_cast({:get_inbox}, state) do
-    Logger.debug("reading inbox messages")
+    # Logger.debug("reading inbox messages")
 
     case Studio54.get_new_count() do
       {:ok, 0} ->
-        Logger.debug("no new messages :/")
+        # Logger.debug("no new messages :/")
+        :continue
 
       {:ok, n} ->
         {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-        Logger.info("got #{n} new messages.")
+        Logger.debug("got #{n} new messages.")
 
         msgs
         |> Enum.map(fn m ->

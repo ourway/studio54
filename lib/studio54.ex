@@ -18,6 +18,9 @@ defmodule Studio54 do
   @listpath "http://#{@host}/api/sms/sms-list"
   @deletepath "http://#{@host}/api/sms/delete-sms"
   @readpath "http://#{@host}/api/sms/set-read"
+  @ussdsendpath "http://#{@host}/api/ussd/send"
+  @ussdgetpath "http://#{@host}/api/ussd/get"
+  @ussdstatuspath "http://#{@host}/api/ussd/status"
 
   @doc """
     This hash is special format used by HUAWEI modems.
@@ -91,7 +94,7 @@ defmodule Studio54 do
   def send_sms(msisdn, text) do
     headers = get_headers()
 
-    sms_data = """
+    postdata = """
     <?xml version: "1.0" encoding="UTF-8"?>
     <request>
     <Index>-1</Index>
@@ -108,7 +111,7 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@smspath, body: sms_data, headers: headers)
+      HTTPotion.post(@smspath, body: postdata, headers: headers)
 
     case body |> Exml.parse() |> Exml.get("//response") do
       "OK" ->
@@ -117,6 +120,56 @@ defmodule Studio54 do
       nil ->
         {:error, false}
     end
+  end
+
+  def get_ussd_status(headers) do
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.get(@ussdstatuspath, headers: headers)
+
+    case body |> Exml.parse() |> Exml.get("//result") |> String.to_integer() do
+      1 ->
+        :timer.sleep(1_000)
+        get_ussd_status(headers)
+
+      0 ->
+        :ready
+    end
+  end
+
+  def send_ussd(command) do
+    headers = get_headers()
+
+    postdata = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <request>
+      <content>#{command}</content>
+      <codeType>CodeType</codeType>
+      <timeout></timeout>
+    </request>
+    """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@ussdsendpath, body: postdata, headers: headers)
+
+    case body |> Exml.parse() |> Exml.get("//response") do
+      "OK" ->
+        :ready = get_ussd_status(headers)
+
+        %HTTPotion.Response{:body => body, :status_code => 200} =
+          HTTPotion.get(@ussdgetpath, headers: headers)
+
+        {:ok, body |> Exml.parse() |> Exml.get("//content")}
+
+      nil ->
+        {:error, false}
+    end
+  end
+
+  def get_credit do
+    cmd = "*140*11#"
+    {:ok, result} = send_ussd(cmd)
+    %{"credit" => cr} = Regex.named_captures(~r/(?<credit>[\d]+) ریال/, result)
+    cr |> String.to_integer()
   end
 
   def get_new_count do

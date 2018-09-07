@@ -18,8 +18,8 @@ defmodule Studio54.Application do
     opts = [strategy: :one_for_one]
     Supervisor.start_link(children, opts)
   end
-  def init(_) do
 
+  def init(_) do
     :ok
   end
 end
