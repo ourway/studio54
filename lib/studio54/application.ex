@@ -4,17 +4,18 @@ defmodule Studio54.Application do
   @moduledoc false
 
   use Application
+  use Supervisor
 
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)
-      {Studio54.Worker, []}
+      worker(Studio54.Starter, [])
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Studio54.Supervisor]
+    opts = [strategy: :one_for_one]
     Supervisor.start_link(children, opts)
   end
 end

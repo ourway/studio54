@@ -6,33 +6,32 @@ defmodule Studio54.Worker do
   """
   use GenServer
   require Logger
-  @tick 5_000
+  @tick 1_000
   @mno Application.get_env(:studio54, :mno)
   @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
-
-  def get_inbox do
-    GenServer.cast(__MODULE__, {:get_inbox})
+  def start do
+    GenServer.start(__MODULE__, [])
   end
 
-  def start_link(args) do
-    GenServer.start(__MODULE__, args, name: __MODULE__)
+  def get_inbox(pid) do
+    GenServer.cast(pid, {:get_inbox})
   end
 
-  def init(_) do
-    state = %{}
-    {:ok, state}
+  def init(args) do
+    {:ok, args}
   end
 
   def handle_cast({:get_inbox}, state) do
     Logger.debug("reading inbox messages")
 
     case Studio54.get_new_count() do
-      0 ->
+      {:ok, 0} ->
         Logger.debug("no new messages :/")
 
-      _ ->
+      {:ok, n} ->
         {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+        Logger.info("got #{n} new messages.")
 
         msgs
         |> Enum.map(fn m ->
@@ -46,7 +45,6 @@ defmodule Studio54.Worker do
             body: m |> Map.put_new(:mno, @mno) |> Poison.encode!(),
             headers: ["Content-Type": "applicaion/json"]
           )
-          |> IO.inspect()
         end)
     end
 
