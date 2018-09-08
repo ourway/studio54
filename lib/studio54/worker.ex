@@ -30,9 +30,9 @@ defmodule Studio54.Worker do
         # Logger.debug("no new messages :/")
         :continue
 
-      {:ok, n} ->
+      {:ok, _} ->
         {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-        Logger.debug("got #{n} new messages.")
+        Logger.debug("got #{msgs |> length} new messages.")
 
         msgs
         |> Enum.map(fn m ->

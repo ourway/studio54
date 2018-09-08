@@ -128,7 +128,7 @@ defmodule Studio54 do
 
     case body |> Exml.parse() |> Exml.get("//result") |> String.to_integer() do
       1 ->
-        :timer.sleep(1_000)
+        :timer.sleep(500)
         get_ussd_status(headers)
 
       0 ->
@@ -225,7 +225,7 @@ defmodule Studio54 do
     <?xml version="1.0" encoding="UTF-8"?>
     <request>
        <PageIndex>1</PageIndex>
-       <ReadCount>50</ReadCount>
+       <ReadCount>100</ReadCount>
        <BoxType>#{box}</BoxType>
        <SortType>0</SortType>
        <Ascending>0</Ascending>
@@ -238,36 +238,45 @@ defmodule Studio54 do
 
     doc = body |> Exml.parse()
 
-    {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
-     case doc |> Exml.get("//Count") |> String.to_integer() do
-       0 ->
-         []
+    case doc |> Exml.get("//code") do
+      nil ->
+        {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
+         case doc |> Exml.get("//Count") |> String.to_integer() do
+           0 ->
+             []
 
-       1 ->
-         [
-           %{
-             msisdn: doc |> Exml.get("//Message//Phone"),
-             body: doc |> Exml.get("//Message//Content"),
-             datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
-             index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
-             new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
-           }
-         ]
+           1 ->
+             [
+               %{
+                 msisdn: doc |> Exml.get("//Message//Phone"),
+                 body: doc |> Exml.get("//Message//Content"),
+                 datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
+                 index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
+                 new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
+               }
+             ]
 
-       _ ->
-         doc
-         |> Exml.get("//Message/Index")
-         |> Enum.map(fn i ->
-           %{
-             msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone"),
-             body: doc |> Exml.get("//Message[Index='#{i}']//Content"),
-             datetime:
-               doc |> Exml.get("//Message[Index='#{i}']//Date") |> NaiveDateTime.from_iso8601!(),
-             index: i |> String.to_integer(),
-             new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
-           }
-         end)
-     end}
+           _ ->
+             doc
+             |> Exml.get("//Message/Index")
+             |> Enum.map(fn i ->
+               %{
+                 msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone"),
+                 body: doc |> Exml.get("//Message[Index='#{i}']//Content"),
+                 datetime:
+                   doc
+                   |> Exml.get("//Message[Index='#{i}']//Date")
+                   |> NaiveDateTime.from_iso8601!(),
+                 index: i |> String.to_integer(),
+                 new:
+                   doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
+               }
+             end)
+         end}
+
+      _ ->
+      {:ok, 0, []}
+    end
   end
 
   def empty_index do
@@ -297,6 +306,49 @@ defmodule Studio54 do
 
       nil ->
         {:error, false}
+    end
+  end
+
+  def get_last_message_from(msisdn) do
+    Studio54.get_inbox(new: false)
+    |> elem(2)
+    |> Enum.filter(fn m -> m.msisdn == "#{msisdn}" end)
+    |> List.first()
+  end
+
+  def get_active_vas_services do
+    msg = get_last_message_from("+98800")
+
+    Regex.scan(~r/\n(?<name>.+) شماره: +(?<shortcode>[\d]+)/, msg.body)
+    |> Enum.map(fn line ->
+      %{
+        service: line |> Enum.at(1),
+        shortcode: line |> Enum.at(2) |> String.to_integer()
+      }
+    end)
+  end
+
+  def request_active_vas_services do
+    {:ok, content} = send_ussd("*800*1#")
+    Regex.match?(~r/نتیجه درخواست/, content)
+  end
+
+  def request_sms_service_subscription(service_short_code, _device \\ :standard) do
+    {:ok, true} = send_sms(service_short_code, "1")
+  end
+
+  def confirm_sms_service_subscription(service_short_code, _device \\ :standard) do
+    msg = get_last_message_from(service_short_code)
+
+    case msg do
+      nil ->
+        {:error, :not_found}
+
+      _ ->
+        Regex.named_captures(
+          ~r/.+فعالسازی.+سرویس (?<name>.+) ب.+روزانه (?<price>[\d]+) تومان.+ عدد (?<code>[\d]{1})/,
+          msg.body
+        )
     end
   end
 end
