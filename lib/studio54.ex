@@ -23,9 +23,13 @@ defmodule Studio54 do
   @ussdstatuspath "http://#{@host}/api/ussd/status"
 
   @doc """
-    This hash is special format used by HUAWEI modems.
+  This hash is special format used by HUAWEI modems.
     basicly, it's lower case of sha256 hash.
   """
+  def start do
+    Studio54.Starter.start_worker()
+  end
+
   def gethash(inp) do
     :crypto.hash(:sha256, inp) |> Base.encode16() |> String.downcase()
   end
@@ -225,7 +229,7 @@ defmodule Studio54 do
     <?xml version="1.0" encoding="UTF-8"?>
     <request>
        <PageIndex>1</PageIndex>
-       <ReadCount>100</ReadCount>
+       <ReadCount>50</ReadCount>
        <BoxType>#{box}</BoxType>
        <SortType>0</SortType>
        <Ascending>0</Ascending>
@@ -275,7 +279,7 @@ defmodule Studio54 do
          end}
 
       _ ->
-      {:ok, 0, []}
+        {:ok, 0, []}
     end
   end
 
@@ -345,10 +349,20 @@ defmodule Studio54 do
         {:error, :not_found}
 
       _ ->
-        Regex.named_captures(
-          ~r/.+فعالسازی.+سرویس (?<name>.+) ب.+روزانه (?<price>[\d]+) تومان.+ عدد (?<code>[\d]{1})/,
-          msg.body
-        )
+        %{"code" => code, "price" => _price, "name" => _name} =
+          Regex.named_captures(
+            ~r/.+فعالسازی.+سرویس (?<name>.+) ب.+روزانه (?<price>[\d]+) تومان.+ عدد (?<code>[\d]{1})/,
+            msg.body
+          )
+
+        case code do
+          nil ->
+            {:error, :code_not_found}
+
+          c ->
+            send_sms(service_short_code, c)
+            {:ok, :sent}
+        end
     end
   end
 end

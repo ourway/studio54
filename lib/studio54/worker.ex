@@ -18,10 +18,12 @@ defmodule Studio54.Worker do
     GenServer.cast(pid, {:get_inbox})
   end
 
+  @impl true
   def init(args) do
     {:ok, args}
   end
 
+  @impl true
   def handle_cast({:get_inbox}, state) do
     # Logger.debug("reading inbox messages")
 
@@ -32,7 +34,14 @@ defmodule Studio54.Worker do
 
       {:ok, _} ->
         {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-        Logger.debug("got #{msgs |> length} new messages.")
+
+        case msgs |> length do
+          0 ->
+            :continue
+
+          n ->
+            Logger.debug("got #{n} new messages.")
+        end
 
         msgs
         |> Enum.map(fn m ->
@@ -51,5 +60,10 @@ defmodule Studio54.Worker do
 
     Process.send_after(self(), {:"$gen_cast", {:get_inbox}}, @tick)
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({_ref, _msg}, _state) do
+    {:noreply, :ok}
   end
 end

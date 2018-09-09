@@ -17,22 +17,34 @@ defmodule Studio54.Starter do
     GenServer.start(__MODULE__, [], name: __MODULE__)
   end
 
+  @impl true
   def init(_) do
+    Process.send_after(self(), :start_worker, 500)
     state = %{}
     {:ok, state}
   end
 
+  @impl true
   def handle_cast({:start_worker}, state) do
     {:ok, worker} = Worker.start()
+    Logger.info("Worker Started watching for messages.")
     Process.monitor(worker)
     Worker.get_inbox(worker)
 
     {:noreply, state}
   end
 
+  @impl true
   def handle_info({:DOWN, _ref, :process, _worker, _reason}, state) do
-    Logger.warn("Worker went down! Starting again")
+    Logger.warn("Worker went down! Starting again after 3 seconds")
+    :timer.sleep(3_000)
     start_worker()
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:start_worker, %{}) do
+    start_worker()
+    {:noreply, %{}}
   end
 end
