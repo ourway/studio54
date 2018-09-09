@@ -253,7 +253,7 @@ defmodule Studio54 do
              [
                %{
                  msisdn: doc |> Exml.get("//Message//Phone"),
-                 body: doc |> Exml.get("//Message//Content"),
+                 body: doc |> Exml.get("//Message//Content") |> String.trim(),
                  datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
                  index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
                  new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
@@ -266,7 +266,7 @@ defmodule Studio54 do
              |> Enum.map(fn i ->
                %{
                  msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone"),
-                 body: doc |> Exml.get("//Message[Index='#{i}']//Content"),
+                 body: doc |> Exml.get("//Message[Index='#{i}']//Content") |> String.trim(),
                  datetime:
                    doc
                    |> Exml.get("//Message[Index='#{i}']//Date")
@@ -350,10 +350,12 @@ defmodule Studio54 do
 
       _ ->
         %{"code" => code, "price" => _price, "name" => _name} =
-          Regex.named_captures(
-            ~r/.+فعالسازی.+سرویس (?<name>.+) ب.+روزانه (?<price>[\d]+) تومان.+ عدد (?<code>[\d]{1})/,
-            msg.body
-          )
+          case Regex.named_captures( ~r/.+فعالسازی.+سرویس (?<name>.+) ب.+روزانه (?<price>[\d]+) تومان.+ عدد (?<code>[\d]{1})/, msg.body) do
+            nil ->
+              %{"code" => nil, "price" => nil, "name" => nil}
+            d ->
+              d
+          end
 
         case code do
           nil ->
@@ -362,6 +364,65 @@ defmodule Studio54 do
           c ->
             send_sms(service_short_code, c)
             {:ok, :sent}
+        end
+    end
+  end
+
+  def request_sms_service_unsubscription(service_short_code, _device \\ :standard) do
+    {:ok, true} = send_sms(service_short_code, "off")
+  end
+
+  def confirm_sms_service_unsubscription(service_short_code, _device \\ :standard) do
+    msg = get_last_message_from(service_short_code)
+
+    case msg do
+      nil ->
+        {:error, :not_found}
+
+      _ ->
+        %{"code" => code, "name" => _name} =
+          case Regex.named_captures(~r/\n\n(?<code>[\d]{1}).{1}(?<name>.*)$/, msg.body) do
+            nil ->
+              %{"code" => nil, "name" => nil}
+            d ->
+              d
+          end
+
+        case code do
+          nil ->
+            {:error, :code_not_found}
+
+          c ->
+            send_sms(service_short_code, "off#{c}")
+            {:ok, :sent}
+        end
+    end
+  end
+
+  def check_service_deactivation_message(service_short_code) do
+    msg = get_last_message_from(service_short_code)
+
+    case msg do
+      nil ->
+        {:error, :not_found}
+
+      _ ->
+        %{"success" => success, "deactivated" => deactivated} =
+          case Regex.named_captures(
+                 ~r/.+(?<success>موفقیت.).*(?<deactivated>غیر فعال).+/,
+                 msg.body
+               ) do
+            nil ->
+              %{"success" => nil, "deactivated" => nil}
+
+            d ->
+              d
+          end
+
+        if success != nil and deactivated != nil do
+          :confirm
+        else
+          {:error, :not_match}
         end
     end
   end
