@@ -169,13 +169,6 @@ defmodule Studio54 do
     end
   end
 
-  def get_credit do
-    cmd = "*140*11#"
-    {:ok, result} = send_ussd(cmd)
-    %{"credit" => cr} = Regex.named_captures(~r/(?<credit>[\d]+) ریال/, result)
-    cr |> String.to_integer()
-  end
-
   def get_new_count do
     headers = get_headers()
 
@@ -314,7 +307,7 @@ defmodule Studio54 do
   end
 
   def get_last_message_from(msisdn) do
-    get_last_n_messages_from(msisdn, 1)
+    get_last_n_messages_from(msisdn, 1) |> hd
   end
 
   def get_last_n_messages_from(msisdn, n) do
