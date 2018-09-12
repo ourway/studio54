@@ -169,6 +169,16 @@ defmodule Studio54 do
     end
   end
 
+  def normalize_msisdn(raw) do
+    %{"prefix" => _, "nn" => nn} =
+      Regex.named_captures(
+        ~r/(?<prefix>[+]+[98]{2}|[98]{2}|[0]{1}|)((?<nn>([0-9]+)|[A-Z a-z]+))/,
+        raw
+      )
+
+    nn
+  end
+
   def get_new_count do
     headers = get_headers()
 
@@ -245,7 +255,7 @@ defmodule Studio54 do
            1 ->
              [
                %{
-                 msisdn: doc |> Exml.get("//Message//Phone"),
+                 msisdn: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
                  body: doc |> Exml.get("//Message//Content") |> String.trim(),
                  datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
                  index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
@@ -258,7 +268,7 @@ defmodule Studio54 do
              |> Exml.get("//Message/Index")
              |> Enum.map(fn i ->
                %{
-                 msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone"),
+                 msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
                  body: doc |> Exml.get("//Message[Index='#{i}']//Content") |> String.trim(),
                  datetime:
                    doc
@@ -307,13 +317,13 @@ defmodule Studio54 do
   end
 
   def get_last_message_from(msisdn) do
-    get_last_n_messages_from(msisdn, 1) |> hd
+    get_last_n_messages_from(msisdn, 1) |> List.first()
   end
 
   def get_last_n_messages_from(msisdn, n) do
     Studio54.get_inbox(new: false)
     |> elem(2)
-    |> Enum.filter(fn m -> m.msisdn == "#{msisdn}" end)
+    |> Enum.filter(fn m -> m.msisdn == "#{msisdn}" |> normalize_msisdn end)
     |> Enum.take(n)
   end
 end
