@@ -1,6 +1,5 @@
 # Studio54
 
-**TODO: Add description**
 
 ## Installation
 
@@ -10,9 +9,14 @@ by adding `studio54` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:studio54, "~> 0.1.2"}
+    {:studio54, "~> 0.2"}
   ]
 end
 ```
 Add :studio54 to applications.
 
+## Usage
+
+```elixir
+Studio54.send_sms 989120228207, "wow"
+```

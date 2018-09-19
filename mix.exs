@@ -4,7 +4,7 @@ defmodule Studio54.MixProject do
   def project do
     [
       app: :studio54,
-      version: "0.2.1",
+      version: "0.2.2",
       description: "SMS sending with HUAWEI E5577Cs-603 LTE modems.  100% test coverage.",
       build_embedded: Mix.env() == :prod,
       package: package(),
@@ -21,7 +21,7 @@ defmodule Studio54.MixProject do
       files: ["lib", "mix.exs", "README*", "config", "test"],
       maintainers: ["Farsheed Ashouri"],
       licenses: ["Apache 2.0"],
-      links: %{"REPO" => "https://rashavas.visualstudio.com/studio54"}
+      links: %{"github" => "https://github.com/ourway/studio54"}
     ]
   end
 
