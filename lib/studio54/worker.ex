@@ -6,7 +6,7 @@ defmodule Studio54.Worker do
   """
   use GenServer
   require Logger
-  @tick 1_000
+  @tick 5_000
   @mno Application.get_env(:studio54, :mno)
   @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)

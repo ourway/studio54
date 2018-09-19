@@ -6,6 +6,7 @@ defmodule Studio54.Application do
   use Application
   use Supervisor
 
+  @impl true
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
@@ -19,7 +20,8 @@ defmodule Studio54.Application do
     Supervisor.start_link(children, opts)
   end
 
-  def init(_) do
-    :ok
+  @impl true
+  def init(args) do
+    {:ok, args}
   end
 end

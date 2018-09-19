@@ -14,12 +14,20 @@ defmodule Studio54.Starter do
   end
 
   def start_link do
-    GenServer.start(__MODULE__, [], name: __MODULE__)
+    case GenServer.start(__MODULE__, [], name: __MODULE__) do
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+
+      {:ok, pid} ->
+        {:ok, pid}
+    end
   end
 
   @impl true
   def init(_) do
-    Process.send_after(self(), :start_worker, 500)
+    {:ok, _} = Registry.start_link(keys: :unique, name: Studio54.Processes)
+
+    start_worker()
     state = %{}
     {:ok, state}
   end
@@ -27,24 +35,19 @@ defmodule Studio54.Starter do
   @impl true
   def handle_cast({:start_worker}, state) do
     {:ok, worker} = Worker.start()
-    Logger.info("Worker Started watching for messages.")
+    Logger.info("Studio54 core worker started.")
     Process.monitor(worker)
     Worker.get_inbox(worker)
-
-    {:noreply, state}
+    :ok = Registry.unregister(Studio54.Processes, "worker")
+    {:ok, _} = Registry.register(Studio54.Processes, "worker", worker)
+    {:noreply, state |> Map.put(:worker, worker)}
   end
 
   @impl true
   def handle_info({:DOWN, _ref, :process, _worker, _reason}, state) do
-    Logger.warn("Worker went down! Starting again after 3 seconds")
-    :timer.sleep(3_000)
-    start_worker()
-    {:noreply, state}
-  end
+    Logger.warn("Studio54 message core worker went down! Starting again after 5 seconds")
+    _time = Process.send_after(self(), {:"$gen_cast", :start_worker}, 5_000)
 
-  @impl true
-  def handle_info(:start_worker, %{}) do
-    start_worker()
-    {:noreply, %{}}
+    {:noreply, state}
   end
 end

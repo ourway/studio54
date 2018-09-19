@@ -26,10 +26,6 @@ defmodule Studio54 do
   This hash is special format used by HUAWEI modems.
     basicly, it's lower case of sha256 hash.
   """
-  def start do
-    Studio54.Starter.start_worker()
-  end
-
   def gethash(inp) do
     :crypto.hash(:sha256, inp) |> Base.encode16() |> String.downcase()
   end
@@ -173,10 +169,10 @@ defmodule Studio54 do
     %{"prefix" => _, "nn" => nn} =
       Regex.named_captures(
         ~r/(?<prefix>[+]+[98]{2}|[98]{2}|[0]{1}|)((?<nn>([0-9]+)|[A-Z a-z]+))/,
-        raw
+        raw |> String.trim()
       )
 
-    nn
+    nn |> String.downcase()
   end
 
   def get_new_count do
@@ -245,52 +241,59 @@ defmodule Studio54 do
 
     doc = body |> Exml.parse()
 
-    case doc |> Exml.get("//code") do
-      nil ->
-        {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
-         case doc |> Exml.get("//Count") |> String.to_integer() do
-           0 ->
-             []
+    {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
+     case doc |> Exml.get("//Count") |> String.to_integer() do
+       0 ->
+         []
 
-           1 ->
-             [
-               %{
-                 msisdn: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
-                 body: doc |> Exml.get("//Message//Content") |> String.trim(),
-                 datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
-                 index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
-                 new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
-               }
-             ]
+       1 ->
+         [
+           %{
+             msisdn: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
+             body:
+               case doc |> Exml.get("//Message//Content") do
+                 nil ->
+                   ""
 
-           _ ->
-             doc
-             |> Exml.get("//Message/Index")
-             |> Enum.map(fn i ->
-               %{
-                 msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
-                 body: doc |> Exml.get("//Message[Index='#{i}']//Content") |> String.trim(),
-                 datetime:
-                   doc
-                   |> Exml.get("//Message[Index='#{i}']//Date")
-                   |> NaiveDateTime.from_iso8601!(),
-                 index: i |> String.to_integer(),
-                 new:
-                   doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
-               }
-             end)
-         end}
+                 b ->
+                   b |> String.trim()
+               end,
+             datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
+             index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
+             new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
+           }
+         ]
 
-      _ ->
-        {:ok, 0, []}
-    end
+       _ ->
+         doc
+         |> Exml.get("//Message/Index")
+         |> Enum.map(fn i ->
+           %{
+             msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
+             body:
+               case doc |> Exml.get("//Message[Index='#{i}']//Content") do
+                 nil ->
+                   ""
+
+                 b ->
+                   b |> String.trim()
+               end,
+             datetime:
+               doc
+               |> Exml.get("//Message[Index='#{i}']//Date")
+               |> NaiveDateTime.from_iso8601!(),
+             index: i |> String.to_integer(),
+             new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
+           }
+         end)
+     end}
   end
 
   def empty_index do
+    headers = get_headers()
     {:ok, _count, messages} = get_inbox(new: false)
     {:ok, _count, messages2} = get_outbox()
     {:ok, _count, messages3} = get_box(3)
-    headers = get_headers()
 
     indexes =
       (messages ++ messages2 ++ messages3)
