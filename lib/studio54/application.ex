@@ -11,7 +11,7 @@ defmodule Studio54.Application do
     # List all child processes to be supervised
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)
-      worker(Studio54.Starter, [])
+      worker(Studio54.Starter, [%{}])
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

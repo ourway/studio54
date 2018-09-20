@@ -258,7 +258,12 @@ defmodule Studio54 do
                  b ->
                    b |> String.trim()
                end,
-             datetime: doc |> Exml.get("//Message/Date") |> NaiveDateTime.from_iso8601!(),
+             unixtime:
+               doc
+               |> Exml.get("//Message/Date")
+               |> Kernel.<>(" Asia/Tehran")
+               |> Timex.parse!("%Y-%m-%d %H:%M:%S %Z", :strftime)
+               |> Timex.to_unix(),
              index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
              new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
            }
@@ -278,10 +283,12 @@ defmodule Studio54 do
                  b ->
                    b |> String.trim()
                end,
-             datetime:
+             unixtime:
                doc
                |> Exml.get("//Message[Index='#{i}']//Date")
-               |> NaiveDateTime.from_iso8601!(),
+               |> Kernel.<>(" Asia/Tehran")
+               |> Timex.parse!("%Y-%m-%d %H:%M:%S %Z", :strftime)
+               |> Timex.to_unix(),
              index: i |> String.to_integer(),
              new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
            }
@@ -292,11 +299,12 @@ defmodule Studio54 do
   def empty_index do
     headers = get_headers()
     {:ok, _count, messages} = get_inbox(new: false)
-    {:ok, _count, messages2} = get_outbox()
-    {:ok, _count, messages3} = get_box(3)
+    # {:ok, _count, messages2} = get_outbox()
+    # {:ok, _count, messages3} = get_box(3)
 
+    # (messages ++ messages2 ++ messages3)
     indexes =
-      (messages ++ messages2 ++ messages3)
+      messages
       |> Enum.map(fn m ->
         "<Index>#{m.index}</Index>"
       end)
@@ -310,12 +318,12 @@ defmodule Studio54 do
     %HTTPotion.Response{:body => body, :status_code => 200} =
       HTTPotion.post(@deletepath, body: postdata, headers: headers)
 
-    case body |> Exml.parse() |> Exml.get("//response") do
-      "OK" ->
+    case body |> Exml.parse() |> Exml.get("//code") do
+      nil ->
         {:ok, true}
 
-      nil ->
-        {:error, false}
+      c ->
+        {:error, c}
     end
   end
 
