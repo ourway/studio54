@@ -31,7 +31,8 @@ Studio54.get_inbox new: true
 ```elixir
 Studio54.Db.add_incomming_message_event "989120228207", 60, IO, :inspect, "[\\d]{5}"
 ```
-    This will call `IO.inspect/1` with incomming message as argument when message
-    sent from `+989-1202-228-207` and body contains a 5 digit number!.
 
-- For more information, look at test folder.
+This will call `IO.inspect/1` with incomming message as argument when message
+sent from `+989-1202-228-207` and body contains a 5 digit number!.
+
+- For more information, look at [test file](/studio54/blob/master/test/studio54_test.exs).
