@@ -5,16 +5,11 @@ defmodule Studio54.Application do
 
   use Application
   use Supervisor
-  require Logger
 
-  alias Studio54.DbSetup, as: DbSetup
 
   @impl true
   def start(_type, _args) do
     # List all child processes to be supervised
-    db_setup()
-
-    Logger.debug "Wait 2 seconds for everything to be ready"
 
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)
@@ -32,7 +27,15 @@ defmodule Studio54.Application do
     {:ok, args}
   end
 
-  def db_setup do
+end
+
+defmodule Mix.Tasks.Studio54Setup do
+  use Mix.Task
+  require Logger
+  alias Studio54.DbSetup, as: DbSetup
+
+  @shortdoc "Simply runs the Hello.say/0 function"
+  def run(_) do
     :ok = DbSetup.create_schema()
     :ok = DbSetup.create_message_table()
     :ok = DbSetup.create_message_event_table()

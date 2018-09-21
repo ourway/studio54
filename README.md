@@ -15,7 +15,12 @@ def deps do
   ]
 end
 ```
-Add `:studio54` to applications.
+Add `:studio54` to applications and then run:
+
+```bash
+mix studio54_setup
+MIX_ENV=test mix studio54_setup
+```
 
 ## Usage
 

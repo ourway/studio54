@@ -12,9 +12,6 @@ defmodule Studio54Test do
     {status, pid} = Starter.start_link(%{})
     assert status == :ok
     assert is_pid(pid)
-    # wait for everything to start
-    assert :ok == Studio54.Application.db_setup()
-    Process.sleep(1000)
     :ok
 
     on_exit(fn ->
@@ -30,7 +27,6 @@ defmodule Studio54Test do
         Process.exit(worker_pid, :error)
       end) =~ "went down"
 
-      assert :ok == DbSetup.delete_schema()
     end)
   end
 
