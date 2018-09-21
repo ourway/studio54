@@ -32,6 +32,7 @@ config :studio54,
   delivery_webhook: "https://httpbin.org/post",
   mo_webhook: "https://httpbin.org/post",
   mno: "IR-TCI",
+  tz_offset: 12600, 
   msisdn: "989906767514"
 
 # It is also possible to import configuration files, relative to this

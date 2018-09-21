@@ -67,9 +67,10 @@ defmodule Studio54.Db do
         module,
         function,
         match \\ nil,
-        ret_if_no_match \\ true
+        ret_if_no_match \\ true,
+        args \\ []
       )
-      when is_integer(timeout) and timeout > 0 and not is_nil(module) and not is_nil(function) do
+      when is_integer(timeout) and timeout > 0 and not is_nil(module) and is_atom(function) do
     regex =
       case match do
         nil ->
@@ -81,13 +82,13 @@ defmodule Studio54.Db do
       end
 
     now = Timex.now() |> Timex.to_unix()
-    idx = now + timeout
+    idx = "#{now + timeout}-#{UUID.uuid4()}"
 
     {:atomic, :ok} =
       :mnesia.transaction(fn ->
         pack =
           {MessageEvent, idx, now, target |> Studio54.normalize_msisdn(), self(), timeout, module,
-           function, false, regex, ret_if_no_match, nil, nil}
+           function, false, regex, ret_if_no_match, nil, nil, args}
 
         :ok = :mnesia.write(pack)
       end)
@@ -155,7 +156,9 @@ defmodule Studio54.Db do
     events
     |> Enum.filter(fn me ->
       idx = me |> elem(1)
-      now > idx
+      timeout = me |> elem(5)
+      unixtime = me |> elem(2)
+      now > (timeout + unixtime)
     end)
     |> Enum.map(fn me ->
       retire_message_event(me |> elem(1))
@@ -173,20 +176,28 @@ defmodule Studio54.Db do
       e_idx = e |> elem(1)
       module = e |> elem(6)
       function = e |> elem(7)
+      args = e |> elem(13)
       regex = e |> elem(9)
       ret_if_no_match = e |> elem(10)
 
       case regex do
         nil ->
           update_message_event_message(e_idx, idx)
-          result = apply(module, function, [idx])
+
+          result = try do
+            apply(module, function, args ++ [idx |> get_message])
+          rescue
+            e ->
+              e
+          end
           update_message_event_result(e_idx, result)
+          e_idx |> retire_message_event()
 
         r ->
           case Regex.match?(r, m.body) do
             true ->
               update_message_event_message(e_idx, idx)
-              result = apply(module, function, [idx])
+              result = apply(module, function, args ++ [idx |> get_message])
               update_message_event_result(e_idx, result)
 
               case ret_if_no_match do

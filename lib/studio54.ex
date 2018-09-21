@@ -9,6 +9,7 @@ defmodule Studio54 do
   @name Application.get_env(:studio54, :name)
   @password Application.get_env(:studio54, :password)
   @host Application.get_env(:studio54, :host)
+  @tz_offset Application.get_env(:studio54, :tz_offset)
   #  @mno Application.get_env(:studio54, :mno)
   @base_url "http://#{@host}"
   @loginpath "#{@base_url}/api/user/login"
@@ -262,9 +263,9 @@ defmodule Studio54 do
              unixtime:
                doc
                |> Exml.get("//Message/Date")
-               |> Kernel.<>(" Asia/Tehran")
-               |> Timex.parse!("%Y-%m-%d %H:%M:%S %Z", :strftime)
-               |> Timex.to_unix(),
+               |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
+               |> Timex.to_unix()
+               |> Kernel.-(@tz_offset),
              index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
              new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
            }
@@ -287,9 +288,9 @@ defmodule Studio54 do
              unixtime:
                doc
                |> Exml.get("//Message[Index='#{i}']//Date")
-               |> Kernel.<>(" Asia/Tehran")
-               |> Timex.parse!("%Y-%m-%d %H:%M:%S %Z", :strftime)
-               |> Timex.to_unix(),
+               |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
+               |> Timex.to_unix()
+               |> Kernel.-(@tz_offset),
              index: i |> String.to_integer(),
              new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
            }
@@ -339,7 +340,7 @@ defmodule Studio54 do
     |> Enum.take(n)
   end
 
-  def test_func(data) do
+  def test_func(:cool, data) do
     IO.inspect(data)
   end
 end

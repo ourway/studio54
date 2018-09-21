@@ -65,7 +65,8 @@ defmodule Studio54.DbSetup do
              :match,
              :retire_if_not_match?,
              :result,
-             :message
+             :message,
+             :args
            ],
            index: [:target, :sender, :retired?, :message]
          ]) do
