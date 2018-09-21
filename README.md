@@ -11,7 +11,7 @@ by adding `studio54` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:studio54, "~> 0.2"}
+    {:studio54, "~> 0.3"}
   ]
 end
 ```

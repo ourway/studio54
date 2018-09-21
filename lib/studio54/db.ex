@@ -157,7 +157,7 @@ defmodule Studio54.Db do
     |> Enum.filter(fn me ->
       timeout = me |> elem(5)
       unixtime = me |> elem(2)
-      now > (timeout + unixtime)
+      now > timeout + unixtime
     end)
     |> Enum.map(fn me ->
       retire_message_event(me |> elem(1))
@@ -183,12 +183,14 @@ defmodule Studio54.Db do
         nil ->
           update_message_event_message(e_idx, idx)
 
-          result = try do
-            apply(module, function, args ++ [idx |> get_message])
-          rescue
-            e ->
-              e
-          end
+          result =
+            try do
+              apply(module, function, args ++ [m])
+            rescue
+              e ->
+                e
+            end
+
           update_message_event_result(e_idx, result)
           e_idx |> retire_message_event()
 
@@ -196,7 +198,7 @@ defmodule Studio54.Db do
           case Regex.match?(r, m.body) do
             true ->
               update_message_event_message(e_idx, idx)
-              result = apply(module, function, args ++ [idx |> get_message])
+              result = apply(module, function, args ++ [m])
               update_message_event_result(e_idx, result)
 
               case ret_if_no_match do

@@ -6,7 +6,6 @@ defmodule Studio54.Application do
   use Application
   use Supervisor
 
-
   @impl true
   def start(_type, _args) do
     # List all child processes to be supervised
@@ -26,7 +25,6 @@ defmodule Studio54.Application do
   def init(args) do
     {:ok, args}
   end
-
 end
 
 defmodule Mix.Tasks.Studio54Setup do

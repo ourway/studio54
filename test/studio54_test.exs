@@ -26,7 +26,6 @@ defmodule Studio54Test do
       capture_log(fn ->
         Process.exit(worker_pid, :error)
       end) =~ "went down"
-
     end)
   end
 
@@ -70,7 +69,7 @@ defmodule Studio54Test do
       {:atomic, ev} = Db.get_message_event(e_idx)
       assert elem(ev, 8) == true
       {:ok, e_idx} = Db.add_message_event("989120228207", 1, IO, :inspect, "\\d{5}")
-      Process.sleep 2000
+      Process.sleep(2000)
       :ok = Db.retire_expired_message_events()
     end
   end
