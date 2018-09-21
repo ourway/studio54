@@ -37,7 +37,7 @@ defmodule Studio54.Db do
       end)
 
     Logger.debug("Added incomming message from #{idx} to database.")
-    {:atomic, :ok}
+    {:atomic, idx}
   end
 
   def get_message(idx) do
@@ -67,7 +67,6 @@ defmodule Studio54.Db do
         module,
         function,
         match \\ nil,
-        permenent \\ nil,
         ret_if_no_match \\ true
       )
       when is_integer(timeout) and timeout > 0 and not is_nil(module) and not is_nil(function) do
@@ -88,7 +87,7 @@ defmodule Studio54.Db do
       :mnesia.transaction(fn ->
         pack =
           {MessageEvent, idx, now, target |> Studio54.normalize_msisdn(), self(), timeout, module,
-           function, false, regex, ret_if_no_match, permenent, nil}
+           function, false, regex, ret_if_no_match, nil, nil}
 
         :ok = :mnesia.write(pack)
       end)
@@ -108,7 +107,17 @@ defmodule Studio54.Db do
     end
   end
 
-  def update_message_event_result(idx, message_idx) do
+  def update_message_event_result(idx, result) do
+    {:atomic, mev} = get_message_event(idx)
+    pack = mev |> put_elem(11, result)
+
+    {:atomic, :ok} =
+      :mnesia.transaction(fn ->
+        :ok = :mnesia.write(pack)
+      end)
+  end
+
+  def update_message_event_message(idx, message_idx) do
     {:atomic, msg} = get_message(message_idx)
     {:atomic, mev} = get_message_event(idx)
     pack = mev |> put_elem(12, msg |> elem(1))
@@ -122,6 +131,7 @@ defmodule Studio54.Db do
   def retire_message_event(idx) do
     {:atomic, mev} = get_message_event(idx)
     pack = mev |> put_elem(8, true)
+    Logger.debug("retiring message event: #{idx}")
 
     {:atomic, :ok} =
       :mnesia.transaction(fn ->
@@ -138,25 +148,57 @@ defmodule Studio54.Db do
 
   @doc "retire message events that has a timeout, not permement and expired."
   def retire_expired_message_events() do
-    now = Timex.now |> Timex.to_unix()
+    now = Timex.now() |> Timex.to_unix()
 
     {:atomic, events} = get_active_events()
+
     events
-      |> Enum.filter(fn me ->
-        idx = me |> elem(1)
-        now > idx
+    |> Enum.filter(fn me ->
+      idx = me |> elem(1)
+      now > idx
+    end)
+    |> Enum.map(fn me ->
+      retire_message_event(me |> elem(1))
+    end)
+  end
 
-      end)
-      |> Enum.map(fn me ->
-        # NOTE
-        case me |> elem(11) do
+  def event_process(events, m, idx) do
+    events
+    |> Enum.filter(fn e ->
+      e |> elem(3) == m.sender
+    end)
+    |> Enum.map(fn e ->
+      e_idx = e |> elem(1)
+      module = e |> elem(6)
+      function = e |> elem(7)
+      regex = e |> elem(9)
+      ret_if_no_match = e |> elem(10)
 
-          true ->
-            {:error, :permenent}
+      case regex do
+        nil ->
+          update_message_event_message(e_idx, idx)
+          result = apply(module, function, [idx])
+          update_message_event_result(e_idx, result)
 
-          n when n in [nil, false] ->
-            retire_message_event(me |> elem(1))
-        end
-      end)
+        r ->
+          case Regex.match?(r, m.body) do
+            true ->
+              update_message_event_message(e_idx, idx)
+              result = apply(module, function, [idx])
+              update_message_event_result(e_idx, result)
+
+              case ret_if_no_match do
+                true ->
+                  e_idx |> retire_message_event()
+
+                false ->
+                  :continue
+              end
+
+            false ->
+              :continue
+          end
+      end
+    end)
   end
 end

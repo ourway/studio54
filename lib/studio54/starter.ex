@@ -67,7 +67,7 @@ defmodule Studio54.Starter do
 
   @impl true
   def handle_info({:DOWN, _ref, :process, _worker, _reason}, state) do
-    Logger.warn("Studio54 message core worker went down! Starting again after 5 seconds")
+    Logger.warn("Studio54 message core worker went down! Starting again after 1 second.")
     _time = Process.send_after(self(), {:"$gen_cast", {:start_monitor}}, 1_000)
 
     {:noreply, state}

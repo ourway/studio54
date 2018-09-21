@@ -5,7 +5,7 @@ defmodule Studio54.Worker do
   use GenServer
   require Logger
   alias Studio54.Db, as: Db
-  @tick 2_000
+  @tick 1_000
   # @mno Application.get_env(:studio54, :mno)
   # @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
@@ -25,10 +25,16 @@ defmodule Studio54.Worker do
   @impl true
   def handle_cast({:message_saver}, state) do
     {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+    {:atomic, events} = Db.get_active_events()
 
     msgs
     |> Enum.map(fn m ->
-      {:atomic, :ok} = Db.add_incomming_message(m.sender, m.body, m.unixtime)
+      {:atomic, idx} = Db.add_incomming_message(m.sender, m.body, m.unixtime)
+
+      Task.start_link(fn ->
+        Db.event_process(events, m, idx)
+      end)
+
       m
     end)
     |> Enum.map(fn m ->
@@ -36,7 +42,9 @@ defmodule Studio54.Worker do
     end)
     |> Studio54.mark_as_read()
 
-    Db.retire_expired_message_events()
+    Task.start_link(fn ->
+      Db.retire_expired_message_events()
+    end)
 
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)

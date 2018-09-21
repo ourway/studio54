@@ -64,10 +64,10 @@ defmodule Studio54.DbSetup do
              :retired?,
              :match,
              :retire_if_not_match?,
-             :permenent,
-             :result
+             :result,
+             :message
            ],
-           index: [:target, :sender, :retired?, :permenent]
+           index: [:target, :sender, :retired?, :message]
          ]) do
       {:atomic, :ok} ->
         Logger.info("message_event table is created.")
