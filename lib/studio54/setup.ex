@@ -28,9 +28,10 @@ defmodule Studio54.DbSetup do
 
   def create_message_table do
     case :mnesia.create_table(Message, [
+           {:type, :ordered_set},
            {:disc_copies, [node()]},
            attributes: [
-             :uuid,
+             :idx,
              :body,
              :sender,
              :receiver,
@@ -50,25 +51,48 @@ defmodule Studio54.DbSetup do
 
   def create_message_event_table do
     case :mnesia.create_table(MessageEvent, [
+           {:type, :ordered_set},
            {:disc_copies, [node()]},
            attributes: [
-             :uuid,
+             :idx,
+             :unixtime,
              :target,
              :sender,
              :timeout,
              :module,
              :function,
-             :status,
-             :result,
-             :unixtime
+             :retired?,
+             :match,
+             :retire_if_not_match?,
+             :permenent,
+             :result
            ],
-           index: [:target, :sender, :status]
+           index: [:target, :sender, :retired?, :permenent]
          ]) do
       {:atomic, :ok} ->
         Logger.info("message_event table is created.")
 
       {:aborted, {:already_exists, MessageEvent}} ->
         Logger.debug("message_event table is available.")
+    end
+
+    :ok
+  end
+
+  def create_state_table do
+    case :mnesia.create_table(Studio54WorkerState, [
+           {:type, :set},
+           {:disc_copies, [node()]},
+           attributes: [
+             :name,
+             :state
+           ]
+         ]) do
+      {:atomic, :ok} ->
+        Logger.info("studio54 state table is created.")
+
+      {:aborted, {:already_exists, Studio54WorkerState}} ->
+        Logger.debug("studio54 state table is available.")
     end
 
     :ok

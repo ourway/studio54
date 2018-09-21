@@ -6,7 +6,8 @@ defmodule Studio54.Starter do
   """
   use GenServer
   require Logger
-  alias Studio54.Worker
+  alias Studio54.Worker, as: Worker
+  alias Studio54.Db, as: Db
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
 
   def start_link(args) do
@@ -25,11 +26,20 @@ defmodule Studio54.Starter do
   @impl true
   def init(_) do
     # basic state
-    worker_initial_state = %{history: []}
+    worker_initial_state =
+      case Db.get_state() do
+        {:error, :not_found} ->
+          %{history: [], state_agent: nil, worker: nil}
+
+        {:ok, state} ->
+          state
+      end
+
     # start an agent for state 
     {:ok, state_agant_pid} = Agent.start(fn -> worker_initial_state end)
     # update and set it's pid in it's state
-    new_state = worker_initial_state |> Map.put_new(:state_agent, state_agant_pid)
+    new_state = worker_initial_state |> Map.put(:state_agent, state_agant_pid)
+    Db.set_state(new_state)
 
     Agent.update(state_agant_pid, fn _ ->
       new_state
@@ -44,9 +54,9 @@ defmodule Studio54.Starter do
 
   @impl true
   def handle_cast({:start_monitor}, state) do
-    state = Agent.get(state.state_agent, fn s -> s end)
+    {:ok, worker_state} = Db.get_state()
 
-    {:ok, worker} = Worker.start(state)
+    {:ok, worker} = Worker.start(worker_state)
     Logger.info("Studio54 core worker started.")
     Process.monitor(worker)
     Worker.start_saver(worker)
@@ -61,5 +71,10 @@ defmodule Studio54.Starter do
     _time = Process.send_after(self(), {:"$gen_cast", {:start_monitor}}, 1_000)
 
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_, state) do
+    Db.set_state(state)
   end
 end

@@ -13,11 +13,6 @@ defmodule Studio54.Worker do
     GenServer.start(__MODULE__, state)
   end
 
-  def get_inbox(sender, target \\ :any, identifier \\ UUID.uuid4()) do
-    [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
-    GenServer.cast(worker_pid, {sender, :get_inbox, target, identifier})
-  end
-
   def start_saver(pid) do
     GenServer.cast(pid, {:message_saver})
   end
@@ -46,11 +41,17 @@ defmodule Studio54.Worker do
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
 
+    Db.set_state(state)
     {:noreply, state}
   end
 
   @impl true
   def handle_info({_ref, _msg}, state) do
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_, state) do
+    Db.set_state(state)
   end
 end
