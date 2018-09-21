@@ -5,6 +5,7 @@ defmodule Studio54 do
   iex > Studio54.Starter.start_worker
   """
   require Exml
+  alias Studio54.Worker, as: Worker
   @name Application.get_env(:studio54, :name)
   @password Application.get_env(:studio54, :password)
   @host Application.get_env(:studio54, :host)
@@ -73,7 +74,7 @@ defmodule Studio54 do
         }
       },
       :status_code => 200
-    } = HTTPotion.post(@loginpath, body: postdata, headers: login_headers)
+    } = HTTPotion.post(@loginpath, body: postdata, headers: login_headers, timeout: 30_000)
 
     %{sid: cookie, token1: token1, token2: token2}
   end
@@ -91,7 +92,7 @@ defmodule Studio54 do
     ]
   end
 
-  def send_sms(msisdn, text) do
+  def send_sms(sender, text) do
     headers = get_headers()
 
     postdata = """
@@ -100,7 +101,7 @@ defmodule Studio54 do
     <Index>-1</Index>
     <Priority>1000</Priority>
     <Phones>
-    <Phone>#{msisdn}</Phone>
+    <Phone>#{sender}</Phone>
     </Phones>
     <Sca></Sca>
     <Content>#{text}</Content>
@@ -111,7 +112,7 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@smspath, body: postdata, headers: headers)
+      HTTPotion.post(@smspath, body: postdata, headers: headers, timeout: 30_000)
 
     case body |> Exml.parse() |> Exml.get("//response") do
       "OK" ->
@@ -124,7 +125,7 @@ defmodule Studio54 do
 
   def get_ussd_status(headers) do
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.get(@ussdstatuspath, headers: headers)
+      HTTPotion.get(@ussdstatuspath, headers: headers, timeout: 30_000)
 
     case body |> Exml.parse() |> Exml.get("//result") |> String.to_integer() do
       1 ->
@@ -149,14 +150,14 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@ussdsendpath, body: postdata, headers: headers)
+      HTTPotion.post(@ussdsendpath, body: postdata, headers: headers, timeout: 30_000)
 
     case body |> Exml.parse() |> Exml.get("//response") do
       "OK" ->
         :ready = get_ussd_status(headers)
 
         %HTTPotion.Response{:body => body, :status_code => 200} =
-          HTTPotion.get(@ussdgetpath, headers: headers)
+          HTTPotion.get(@ussdgetpath, headers: headers, timeout: 30_000)
 
         {:ok, body |> Exml.parse() |> Exml.get("//content")}
 
@@ -179,7 +180,7 @@ defmodule Studio54 do
     headers = get_headers()
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.get(@countpath, headers: headers)
+      HTTPotion.get(@countpath, headers: headers, timeout: 30_000)
 
     {:ok, body |> Exml.parse() |> Exml.get("//LocalUnread") |> String.to_integer()}
   end
@@ -194,7 +195,7 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@readpath, body: postdata, headers: headers)
+      HTTPotion.post(@readpath, body: postdata, headers: headers, timeout: 30_000)
 
     case body |> Exml.parse() |> Exml.get("//response") do
       "OK" ->
@@ -237,7 +238,7 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@listpath, body: postdata, headers: headers)
+      HTTPotion.post(@listpath, body: postdata, headers: headers, timeout: 30_000)
 
     doc = body |> Exml.parse()
 
@@ -249,7 +250,7 @@ defmodule Studio54 do
        1 ->
          [
            %{
-             msisdn: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
+             sender: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
              body:
                case doc |> Exml.get("//Message//Content") do
                  nil ->
@@ -274,7 +275,7 @@ defmodule Studio54 do
          |> Exml.get("//Message/Index")
          |> Enum.map(fn i ->
            %{
-             msisdn: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
+             sender: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
              body:
                case doc |> Exml.get("//Message[Index='#{i}']//Content") do
                  nil ->
@@ -316,7 +317,7 @@ defmodule Studio54 do
     """
 
     %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@deletepath, body: postdata, headers: headers)
+      HTTPotion.post(@deletepath, body: postdata, headers: headers, timeout: 30_000)
 
     case body |> Exml.parse() |> Exml.get("//code") do
       nil ->
@@ -327,14 +328,18 @@ defmodule Studio54 do
     end
   end
 
-  def get_last_message_from(msisdn) do
-    get_last_n_messages_from(msisdn, 1) |> List.first()
+  def get_last_message_from(sender) do
+    get_last_n_messages_from(sender, 1) |> List.first()
   end
 
-  def get_last_n_messages_from(msisdn, n) do
+  def get_last_n_messages_from(sender, n) do
     Studio54.get_inbox(new: false)
     |> elem(2)
-    |> Enum.filter(fn m -> m.msisdn == "#{msisdn}" |> normalize_msisdn end)
+    |> Enum.filter(fn m -> m.sender == "#{sender}" |> normalize_msisdn end)
     |> Enum.take(n)
+  end
+
+  def test_func(data) do
+    IO.inspect(data)
   end
 end

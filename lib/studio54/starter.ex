@@ -49,7 +49,7 @@ defmodule Studio54.Starter do
     {:ok, worker} = Worker.start(state)
     Logger.info("Studio54 core worker started.")
     Process.monitor(worker)
-    # Worker.get_inbox(worker)
+    Worker.start_saver(worker)
     :ok = Registry.unregister(Studio54.Processes, "worker")
     {:ok, _} = Registry.register(Studio54.Processes, "worker", worker)
     {:noreply, state |> Map.put(:worker, worker)}

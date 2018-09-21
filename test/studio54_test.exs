@@ -5,6 +5,8 @@ defmodule Studio54Test do
   doctest Studio54
   alias Studio54.Starter, as: Starter
   alias Studio54.Worker, as: Worker
+  alias Studio54.Db, as: Db
+  alias Studio54.DbSetup, as: DbSetup
 
   setup_all do
     {status, pid} = Starter.start_link(%{})
@@ -12,10 +14,13 @@ defmodule Studio54Test do
     assert is_pid(pid)
     # wait for everything to start
     # Process.sleep 1000
+    assert :ok == Studio54.Application.db_setup()
     :ok
 
     on_exit(fn ->
-      assert {:ok, true} == Studio54.empty_index()
+      {status, result} = Studio54.empty_index()
+      assert status == :ok or status == :error
+      assert result == true or Regex.match?(~r/\d+/, result)
 
       [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
       state = :sys.get_state(pid)
@@ -24,18 +29,35 @@ defmodule Studio54Test do
       capture_log(fn ->
         Process.exit(worker_pid, :error)
       end) =~ "went down"
+
+      assert :ok == DbSetup.delete_schema()
     end)
+  end
+
+  describe "database" do
+    test "adding incomming messages is successful" do
+      assert {:atomic, :ok} == Db.add_incomming_message("989120228207", "wow, it's a test")
+    end
+
+    test "reading messages table is ok" do
+      assert {:atomic, :ok} == Db.add_incomming_message("989120228207", "wow, it's second test")
+      {:ok, msgs} = Db.read_incomming_messages_from("989120228207")
+      assert length(msgs) >= 1
+    end
   end
 
   describe "when application starts -> " do
     test "worker gets inbox correctly" do
+      [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
       Worker.get_inbox(self())
-      assert_receive {:ok, message_list}, 5000
+      :sys.get_state(worker_pid, 60_000)
 
-      :timer.sleep(500)
+      assert_received {:ok, identifier, message_list}
+
       # now get message from a target:
       Worker.get_inbox(self(), 98_307_000)
-      assert_receive {:ok, new_message_list}, 5000
+      :sys.get_state(worker_pid, 60_000)
+      assert_received {:ok, identifier, new_message_list}
       #
     end
   end

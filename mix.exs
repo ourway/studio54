@@ -32,8 +32,10 @@ defmodule Studio54.MixProject do
         :logger,
         :timex,
         :poison,
+        :elixir_uuid,
         :inets,
         :ssl,
+        :mnesia,
         :ibrowse,
         :httpotion,
         :exml,
@@ -51,7 +53,7 @@ defmodule Studio54.MixProject do
       {:persian, "~> 0.1.4"},
       {:poison, "~> 4.0"},
       {:exml, "~> 0.1.1"},
-      {:elixir_uuid, "~> 1.2", only: :test},
+      {:elixir_uuid, "~> 1.2"},
       {:dialyxir, "~> 1.0.0-rc.3", only: [:dev], runtime: false},
       {:httpotion, "~> 3.1"}
     ]

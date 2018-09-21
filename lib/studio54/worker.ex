@@ -4,17 +4,22 @@ defmodule Studio54.Worker do
   """
   use GenServer
   require Logger
-  # @tick 5_000
-  @mno Application.get_env(:studio54, :mno)
-  @mo_webhook Application.get_env(:studio54, :mo_webhook)
+  alias Studio54.Db, as: Db
+  @tick 2_000
+  # @mno Application.get_env(:studio54, :mno)
+  # @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
   def start(state) do
     GenServer.start(__MODULE__, state)
   end
 
-  def get_inbox(pid, target \\ :any) do
+  def get_inbox(sender, target \\ :any, identifier \\ UUID.uuid4()) do
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
-    GenServer.cast(worker_pid, {pid, :get_inbox, target})
+    GenServer.cast(worker_pid, {sender, :get_inbox, target, identifier})
+  end
+
+  def start_saver(pid) do
+    GenServer.cast(pid, {:message_saver})
   end
 
   @impl true
@@ -23,60 +28,25 @@ defmodule Studio54.Worker do
   end
 
   @impl true
-  def handle_cast({pid, :get_inbox, target}, state) do
-    msgs =
-      case target do
-        :any ->
-          {:ok, _count, msgs} = Studio54.get_inbox(new: false)
-          msgs
+  def handle_cast({:message_saver}, state) do
+    {:ok, _count, msgs} = Studio54.get_inbox(new: true)
 
-        t ->
-          Studio54.get_last_n_messages_from(t, 50)
-      end
-
-    results =
-      case msgs |> length do
-        0 ->
-          []
-
-        _n ->
-          case state.history |> Enum.filter(fn h -> h |> elem(0) == pid end) do
-            [] ->
-              # send(pid, msgs)
-              msgs
-
-            [{_, t}] ->
-              msgs
-              |> Enum.filter(fn m ->
-                m.unixtime - t  >= 0
-              end)
-          end
-      end
-
-    # results
-    # |> Enum.map(fn m ->
-    #  m.index
-    # end)
-    # |> Studio54.mark_as_read()
-
-    results
+    msgs
     |> Enum.map(fn m ->
-      HTTPotion.post(@mo_webhook,
-        body: m |> Map.put_new(:mno, @mno) |> Poison.encode!(),
-        headers: ["Content-Type": "applicaion/json"]
-      )
+      {:atomic, :ok} = Db.add_incomming_message(m.sender, m.body, m.unixtime)
+      m
     end)
+    |> Enum.map(fn m ->
+      m.index
+    end)
+    |> Studio54.mark_as_read()
 
-    send(pid, {:ok, results})
+    # Db.retire_expired_message_events()
 
-    epcho =
-      Timex.now()
-      |> Timex.to_unix()
+    [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
+    Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
 
-    new_state = %{state | history: state.history |> List.keystore(pid, 0, {pid, epcho})}
-    # update agent for recovery
-    Agent.update(state.state_agent, fn _ -> new_state end)
-    {:noreply, new_state}
+    {:noreply, state}
   end
 
   @impl true

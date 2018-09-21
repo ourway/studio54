@@ -5,10 +5,15 @@ defmodule Studio54.Application do
 
   use Application
   use Supervisor
+  require Logger
+
+  alias Studio54.DbSetup, as: DbSetup
 
   @impl true
   def start(_type, _args) do
     # List all child processes to be supervised
+    db_setup()
+
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)
       worker(Studio54.Starter, [%{}])
@@ -23,5 +28,12 @@ defmodule Studio54.Application do
   @impl true
   def init(args) do
     {:ok, args}
+  end
+
+  def db_setup do
+    :ok = DbSetup.create_schema()
+    :ok = DbSetup.create_message_table()
+    :ok = DbSetup.create_message_event_table()
+    :ok
   end
 end

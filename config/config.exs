@@ -21,13 +21,18 @@ use Mix.Config
 #     config :logger, level: :info
 #
 #
+#
+config :mnesia,
+  dir: '/tmp/studio54_#{Mix.env()}'
+
 config :studio54,
   host: "192.168.10.1",
   name: "admin",
   password: "admin",
   delivery_webhook: "https://httpbin.org/post",
   mo_webhook: "https://httpbin.org/post",
-  mno: "IR-TCI"
+  mno: "IR-TCI",
+  msisdn: "989906767514"
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
