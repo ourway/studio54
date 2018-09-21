@@ -5,7 +5,7 @@ defmodule Studio54 do
   iex > Studio54.Starter.start_worker
   """
   require Exml
-  alias Studio54.Worker, as: Worker
+  #alias Studio54.Worker, as: Worker
   @name Application.get_env(:studio54, :name)
   @password Application.get_env(:studio54, :password)
   @host Application.get_env(:studio54, :host)

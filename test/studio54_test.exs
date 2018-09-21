@@ -13,8 +13,8 @@ defmodule Studio54Test do
     assert status == :ok
     assert is_pid(pid)
     # wait for everything to start
-    # Process.sleep 1000
     assert :ok == Studio54.Application.db_setup()
+    Process.sleep(1000)
     :ok
 
     on_exit(fn ->
@@ -36,28 +36,52 @@ defmodule Studio54Test do
 
   describe "database" do
     test "adding incomming messages is successful" do
-      assert {:atomic, :ok} == Db.add_incomming_message("989120228207", "wow, it's a test")
+      {status, idx} = Db.add_incomming_message("989120228207", "wow, it's a test")
+      assert status == :atomic
+    end
+
+    test "adding message event working" do
+      {:ok, idx} = Db.add_message_event("989120228207", 3, IO, :inspect, "\\d{5}")
+      {:atomic, ev} = Db.get_message_event(idx)
+      assert elem(ev, 1) == idx
+      {:ok, idx} = Db.add_message_event("989120228207", 3, IO, :inspect)
     end
 
     test "reading messages table is ok" do
-      assert {:atomic, :ok} == Db.add_incomming_message("989120228207", "wow, it's second test")
+      {:atomic, idx} = Db.add_incomming_message("989120228207", "wow, it's second test")
       {:ok, msgs} = Db.read_incomming_messages_from("989120228207")
+      {:atomic, msg} = Db.get_message(idx)
+      assert elem(msg, 2) =~ "wow"
       assert length(msgs) >= 1
+    end
+
+    test "updating message event result is ok" do
+      {:atomic, idx} = Db.add_incomming_message("989120228207", "wow, it's second test")
+      {:ok, e_idx} = Db.add_message_event("989120228207", 3, IO, :inspect, "\\d{5}")
+      assert {:atomic, :ok} == Db.update_message_event_result(e_idx, %{})
+      {:atomic, ev} = Db.get_message_event(e_idx)
+      assert elem(ev, 11) == %{}
+      assert {:atomic, :ok} == Db.update_message_event_message(e_idx, idx)
+      {:atomic, ev} = Db.get_message_event(e_idx)
+      assert elem(ev, 12) == idx
+    end
+
+    test "retiring events works correct" do
+      {:ok, e_idx} = Db.add_message_event("989120228207", 300, IO, :inspect, "\\d{5}")
+      {:atomic, ev} = Db.get_message_event(e_idx)
+      assert elem(ev, 8) == false
+      {:atomic, :ok} = Db.retire_message_event(e_idx)
+      {:atomic, ev} = Db.get_message_event(e_idx)
+      assert elem(ev, 8) == true
+      {:ok, e_idx} = Db.add_message_event("989120228207", 1, IO, :inspect, "\\d{5}")
+      Process.sleep 2000
+      :ok = Db.retire_expired_message_events()
     end
   end
 
   describe "when application starts -> " do
     test "worker gets inbox correctly" do
       [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
-      Worker.get_inbox(self())
-      :sys.get_state(worker_pid, 60_000)
-
-      assert_received {:ok, identifier, message_list}
-
-      # now get message from a target:
-      Worker.get_inbox(self(), 98_307_000)
-      :sys.get_state(worker_pid, 60_000)
-      assert_received {:ok, identifier, new_message_list}
       #
     end
   end

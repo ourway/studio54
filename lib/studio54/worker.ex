@@ -14,7 +14,7 @@ defmodule Studio54.Worker do
   end
 
   def start_saver(pid) do
-    GenServer.cast(pid, {:message_saver})
+    Process.send_after(pid, {:"$gen_cast", {:message_saver}}, @tick)
   end
 
   @impl true

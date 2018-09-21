@@ -160,6 +160,8 @@ defmodule Studio54.Db do
     |> Enum.map(fn me ->
       retire_message_event(me |> elem(1))
     end)
+
+    :ok
   end
 
   def event_process(events, m, idx) do
@@ -200,5 +202,7 @@ defmodule Studio54.Db do
           end
       end
     end)
+
+    :ok
   end
 end

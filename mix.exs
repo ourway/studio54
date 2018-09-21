@@ -4,7 +4,7 @@ defmodule Studio54.MixProject do
   def project do
     [
       app: :studio54,
-      version: "0.2.2",
+      version: "0.2.3",
       description: "SMS sending with HUAWEI E5577Cs-603 LTE modems.  100% test coverage.",
       build_embedded: Mix.env() == :prod,
       package: package(),
@@ -49,7 +49,7 @@ defmodule Studio54.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev},
-      {:timex, "~> 3.1"},
+      {:timex, "~> 3.4"},
       {:persian, "~> 0.1.4"},
       {:poison, "~> 4.0"},
       {:exml, "~> 0.1.1"},
