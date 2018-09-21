@@ -1,5 +1,7 @@
 # Studio54
 
+[![Hex version](https://img.shields.io/hexpm/v/studio54.svg "Hex version")](https://hex.pm/packages/studio54)
+![Hex downloads](https://img.shields.io/hexpm/dt/studio54.svg "Hex downloads")
 
 ## Installation
 
