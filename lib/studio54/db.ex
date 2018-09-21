@@ -40,8 +40,6 @@ defmodule Studio54.Db do
     {:atomic, :ok}
   end
 
-
-
   def get_message(idx) do
     case :mnesia.transaction(fn ->
            :mnesia.read(Message, idx)
@@ -49,8 +47,8 @@ defmodule Studio54.Db do
       {:atomic, []} ->
         {:error, :not_found}
 
-      d ->
-        d
+      {:atomic, d} ->
+        {:atomic, d |> List.first()}
     end
   end
 
@@ -105,45 +103,59 @@ defmodule Studio54.Db do
       {:atomic, []} ->
         {:error, :not_found}
 
-      d ->
-        d
+      {:atomic, d} ->
+        {:atomic, d |> List.first()}
     end
   end
 
-
   def update_message_event_result(idx, message_idx) do
+    {:atomic, msg} = get_message(message_idx)
+    {:atomic, mev} = get_message_event(idx)
+    pack = mev |> put_elem(12, msg |> elem(1))
 
+    {:atomic, :ok} =
+      :mnesia.transaction(fn ->
+        :ok = :mnesia.write(pack)
+      end)
+  end
 
+  def retire_message_event(idx) do
+    {:atomic, mev} = get_message_event(idx)
+    pack = mev |> put_elem(8, true)
+
+    {:atomic, :ok} =
+      :mnesia.transaction(fn ->
+        :ok = :mnesia.write(pack)
+      end)
+  end
+
+  def get_active_events do
+    {:atomic, _events} =
+      :mnesia.transaction(fn ->
+        :mnesia.index_read(MessageEvent, false, :retired?)
+      end)
   end
 
   @doc "retire message events that has a timeout, not permement and expired."
   def retire_expired_message_events() do
-    now = Timex.now() |> Timex.to_unix()
+    now = Timex.now |> Timex.to_unix()
 
-    {:atomic, events} =
-      :mnesia.transaction(fn ->
-        :mnesia.index_read(MessageEvent, false, :retired?)
-      end)
+    {:atomic, events} = get_active_events()
+    events
       |> Enum.filter(fn me ->
-        timeout = me |> elem(5)
-        unixtime = me |> elem(2)
+        idx = me |> elem(1)
+        now > idx
 
-        case timeout do
-          nil ->
-            false
-
-          to ->
-            now - unixtime <= to
-        end
       end)
       |> Enum.map(fn me ->
         # NOTE
         case me |> elem(11) do
-          false ->
-            :not_implemented
 
           true ->
             {:error, :permenent}
+
+          n when n in [nil, false] ->
+            retire_message_event(me |> elem(1))
         end
       end)
   end

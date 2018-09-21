@@ -36,7 +36,7 @@ defmodule Studio54.Worker do
     end)
     |> Studio54.mark_as_read()
 
-    # Db.retire_expired_message_events()
+    Db.retire_expired_message_events()
 
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
