@@ -15,7 +15,6 @@ defmodule Studio54.Application do
     db_setup()
 
     Logger.debug "Wait 2 seconds for everything to be ready"
-    Process.sleep 2_000
 
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)

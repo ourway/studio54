@@ -155,7 +155,6 @@ defmodule Studio54.Db do
 
     events
     |> Enum.filter(fn me ->
-      idx = me |> elem(1)
       timeout = me |> elem(5)
       unixtime = me |> elem(2)
       now > (timeout + unixtime)
