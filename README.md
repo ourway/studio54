@@ -25,6 +25,23 @@ mix studio54_setup clean
 
 ```
 
+## Config
+
+```elixir
+
+config :studio54,                                                                                                                                                                          
+     host: "192.168.10.1",
+     name: "admin",
+     password: "admin",
+     delivery_webhook: "https://httpbin.org/post",
+     mo_webhook: "https://httpbin.org/post",
+     tick: 1000,
+     delay_on_record: 2000,
+     mno: "IR-TCI",
+     tz_offset: 12600,
+     msisdn: "989906767514
+```
+
 ## Usage
 
 - Sending SMS:
