@@ -50,6 +50,26 @@ defmodule Studio54.Db do
     {:atomic, :ok}
   end
 
+
+
+  def get_last_message_body_from(sender) do
+    get_last_message_from(sender) |> elem(2)
+  end
+
+
+  def get_last_message_from(sender) do
+    get_messages_from(sender) |> List.last()
+  end
+
+  def get_messages_from(sender) do
+    {:atomic, msgs} =
+      :mnesia.transaction(fn ->
+        :mnesia.index_read(Message, sender, :sender)
+      end)
+
+    msgs
+  end
+
   def get_message(idx) do
     case :mnesia.transaction(fn ->
            :mnesia.read(Message, idx)
@@ -152,15 +172,34 @@ defmodule Studio54.Db do
       end)
   end
 
+  def is_active_event(idx) do
+    {:atomic, mev} = get_message_event(idx)
+
+    case mev |> elem(8) do
+      false ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
   def retire_message_event(idx) do
     {:atomic, mev} = get_message_event(idx)
-    pack = mev |> put_elem(8, true)
-    Logger.debug("retiring message event: #{idx}")
 
-    {:atomic, :ok} =
-      :mnesia.transaction(fn ->
-        :ok = :mnesia.write(pack)
-      end)
+    case is_active_event(idx) do
+      true ->
+        pack = mev |> put_elem(8, true)
+        Logger.debug("retiring message event: #{idx}")
+
+        {:atomic, :ok} =
+          :mnesia.transaction(fn ->
+            :ok = :mnesia.write(pack)
+          end)
+
+      false ->
+        {:atomic, :ok}
+    end
   end
 
   def get_active_events do
@@ -194,7 +233,7 @@ defmodule Studio54.Db do
 
     events
     |> Enum.filter(fn e ->
-      e |> elem(3) == m.sender
+      e |> elem(3) == m.sender and is_active_event(e |> elem(1)) == true
     end)
     |> Enum.map(fn e ->
       e_idx = e |> elem(1)

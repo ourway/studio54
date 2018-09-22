@@ -60,12 +60,9 @@ defmodule Studio54.Worker do
               value: :ping
             })
         end)
-
-        Task.start_link(fn ->
-          Db.retire_expired_message_events()
-        end)
     end
 
+    :ok = Db.retire_expired_message_events()
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
     Db.set_state(state)

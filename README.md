@@ -11,7 +11,7 @@ by adding `studio54` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:studio54, "~> 0.3"}
+    {:studio54, "~> 0.4"}
   ]
 end
 ```
@@ -36,7 +36,7 @@ config :studio54,
      delay_on_record: 2000, # wait time to handle multi part messages
      mno: "IR-TCI",         # device sim mobile network operator
      tz_offset: 12600,      # Timezone offset
-     msisdn: "989906767514  # device sim number
+     msisdn: "989906767514" # device sim number
 ```
 
 ## Usage
