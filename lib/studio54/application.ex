@@ -5,13 +5,58 @@ defmodule Studio54.Application do
 
   use Application
   use Supervisor
+  # import Cachex.Spec
 
   @impl true
   def start(_type, _args) do
+    :ok = :mnesia.start()
     # List all child processes to be supervised
 
     children = [
       # Starts a worker by calling: Studio54.Worker.start_link(arg)
+      #      worker(Cachex, [
+      #        :cache,
+      #        [
+      #          transactions: false,
+      #          hooks: [
+      #            hook(module: Studio54.Hooks)
+      #          ]
+      #        ]
+      #      ]),
+      #
+      #
+
+      worker(
+        ConCache,
+        [
+          [
+            name: :box_cache,
+            ttl_check_interval: :timer.seconds(1),
+            global_ttl: :timer.seconds(2)
+          ]
+        ],
+        id: :box_cache_worker
+      ),
+      worker(
+        ConCache,
+        [
+          [
+            name: :message_cache,
+            ttl_check_interval: :timer.seconds(1),
+            global_ttl: :infinity,
+            callback: fn data ->
+              case data do
+                {:delete, _pid, sender} ->
+                  Studio54.Db.add_incomming_message(sender)
+
+                _ ->
+                  :i_dont_care
+              end
+            end
+          ]
+        ],
+        id: :message_cache_worker
+      ),
       worker(Studio54.Starter, [%{}])
     ]
 
@@ -33,7 +78,15 @@ defmodule Mix.Tasks.Studio54Setup do
   alias Studio54.DbSetup, as: DbSetup
 
   @shortdoc "Simply runs the Hello.say/0 function"
-  def run(_) do
+  def run(mode) do
+    case mode do
+      ["clean"] ->
+        :ok = DbSetup.delete_schema()
+
+      [] ->
+        :continue
+    end
+
     :ok = DbSetup.create_schema()
     :ok = DbSetup.create_message_table()
     :ok = DbSetup.create_message_event_table()

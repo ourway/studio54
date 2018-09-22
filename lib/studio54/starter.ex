@@ -38,6 +38,7 @@ defmodule Studio54.Starter do
     # start an agent for state 
     {:ok, state_agant_pid} = Agent.start(fn -> worker_initial_state end)
     # update and set it's pid in it's state
+
     new_state = worker_initial_state |> Map.put(:state_agent, state_agant_pid)
     Db.set_state(new_state)
 
@@ -48,7 +49,7 @@ defmodule Studio54.Starter do
     {:ok, _} = Registry.start_link(keys: :unique, name: Studio54.Processes)
     {:ok, _} = Registry.register(Studio54.Processes, "worker_state", new_state)
     {:ok, _} = Registry.register(Studio54.Processes, "state_agent", state_agant_pid)
-    GenServer.cast(__MODULE__, {:start_monitor})
+    Process.send_after(__MODULE__, {:"$gen_cast", {:start_monitor}}, 1000)
     {:ok, %{state_agent: state_agant_pid}}
   end
 

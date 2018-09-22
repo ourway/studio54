@@ -19,7 +19,10 @@ Add `:studio54` to applications and then run:
 
 ```bash
 mix studio54_setup
-MIX_ENV=test mix studio54_setup
+mix studio54_setup 
+# or if you want to cleanup everything:
+mix studio54_setup clean
+
 ```
 
 ## Usage
@@ -41,5 +44,12 @@ Studio54.Db.add_message_event "989120228207", 60, IO, :inspect, "[\\d]{5}"
 
 This will call `IO.inspect/1` with incomming message as argument when message
 sent from `+989-1202-228-207` and body contains a 5 digit number!.
+
+
+## Running tests:
+
+```bash
+MIX_ENV=test mix do studio54_setup clean, test --trace --cover
+```
 
 - For more information, look at [test file](/test/studio54_test.exs).

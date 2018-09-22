@@ -24,20 +24,30 @@ defmodule Studio54.Db do
     end
   end
 
-  def add_incomming_message(sender, body, unixtime \\ Timex.now() |> Timex.to_unix()) do
-    idx = "#{unixtime}-#{sender}"
+  def add_incomming_message(sender) do
+    # wait 500 miliseconds to finish multipart ones
+    Studio54.get_last_n_messages_from(sender, 10)
+    |> Enum.map(fn m ->
+      idx = "#{m.unixtime}-#{sender}"
+      {:atomic, events} = get_active_events()
 
-    {:atomic, :ok} =
-      :mnesia.transaction(fn ->
-        pack =
-          {Message, idx, body, sender |> Studio54.normalize_msisdn(),
-           @receiver |> Studio54.normalize_msisdn(), unixtime}
+      {:atomic, :ok} =
+        :mnesia.transaction(fn ->
+          pack =
+            {Message, idx, m.body, sender |> Studio54.normalize_msisdn(),
+             @receiver |> Studio54.normalize_msisdn(), m.unixtime}
 
-        :ok = :mnesia.write(pack)
+          :ok = :mnesia.write(pack)
+        end)
+
+      Task.start_link(fn ->
+        event_process(events, m, idx)
       end)
 
-    Logger.debug("Added incomming message from #{idx} to database.")
-    {:atomic, idx}
+      Logger.debug("Added incomming message from #{idx} to database.")
+    end)
+
+    {:atomic, :ok}
   end
 
   def get_message(idx) do
@@ -61,6 +71,19 @@ defmodule Studio54.Db do
     {:ok, msgs}
   end
 
+  @doc """
+  Subscribe to an incomming message event.
+
+  Example:
+
+      ```
+      iex> Studio54.Db.add_message_event 98912028207, 60, IO, :inspect, "[\\d]{5}", true, []
+      {:ok, idx}
+
+      ```
+
+
+  """
   def add_message_event(
         target,
         timeout,
@@ -167,6 +190,8 @@ defmodule Studio54.Db do
   end
 
   def event_process(events, m, idx) do
+    {:atomic, message} = idx |> get_message
+
     events
     |> Enum.filter(fn e ->
       e |> elem(3) == m.sender
@@ -185,7 +210,7 @@ defmodule Studio54.Db do
 
           result =
             try do
-              apply(module, function, args ++ [m])
+              apply(module, function, args ++ [message])
             rescue
               e ->
                 e
@@ -198,7 +223,7 @@ defmodule Studio54.Db do
           case Regex.match?(r, m.body) do
             true ->
               update_message_event_message(e_idx, idx)
-              result = apply(module, function, args ++ [m])
+              result = apply(module, function, args ++ [message])
               update_message_event_result(e_idx, result)
 
               case ret_if_no_match do

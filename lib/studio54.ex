@@ -23,6 +23,7 @@ defmodule Studio54 do
   @ussdsendpath "http://#{@host}/api/ussd/send"
   @ussdgetpath "http://#{@host}/api/ussd/get"
   @ussdstatuspath "http://#{@host}/api/ussd/status"
+  @moduleswitchpath "http://#{@host}/api/global/module-switch"
 
   @doc """
   This hash is special format used by HUAWEI modems.
@@ -30,6 +31,17 @@ defmodule Studio54 do
   """
   def gethash(inp) do
     :crypto.hash(:sha256, inp) |> Base.encode16() |> String.downcase()
+  end
+
+  @doc """
+    Get device information
+  """
+  def get_device_features do
+    headers = get_headers()
+    doc = HTTPotion.get(@moduleswitchpath, headers: headers) |> Map.get(:body) |> Exml.parse()
+    sms? = doc |> Exml.get("//sms_enabled")
+    ussd? = doc |> Exml.get("//ussd_enabled")
+    %{sms: sms? == "1", ussd: ussd? == "1"}
   end
 
   @doc """
@@ -224,78 +236,90 @@ defmodule Studio54 do
   end
 
   def get_box(box) do
-    headers = get_headers()
+    case ConCache.get(:box_cache, "box_#{box}") do
+      nil ->
+        headers = get_headers()
 
-    postdata = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <request>
-       <PageIndex>1</PageIndex>
-       <ReadCount>50</ReadCount>
-       <BoxType>#{box}</BoxType>
-       <SortType>0</SortType>
-       <Ascending>0</Ascending>
-       <UnreadPreferred>1</UnreadPreferred>
-    </request>
-    """
+        postdata = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <request>
+           <PageIndex>1</PageIndex>
+           <ReadCount>50</ReadCount>
+           <BoxType>#{box}</BoxType>
+           <SortType>0</SortType>
+           <Ascending>0</Ascending>
+           <UnreadPreferred>1</UnreadPreferred>
+        </request>
+        """
 
-    %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@listpath, body: postdata, headers: headers, timeout: 30_000)
+        %HTTPotion.Response{:body => body, :status_code => 200} =
+          HTTPotion.post(@listpath, body: postdata, headers: headers, timeout: 30_000)
 
-    doc = body |> Exml.parse()
+        doc = body |> Exml.parse()
 
-    {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
-     case doc |> Exml.get("//Count") |> String.to_integer() do
-       0 ->
-         []
+        results =
+          {:ok, doc |> Exml.get("//Count") |> String.to_integer(),
+           case doc |> Exml.get("//Count") |> String.to_integer() do
+             0 ->
+               []
 
-       1 ->
-         [
-           %{
-             sender: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
-             body:
-               case doc |> Exml.get("//Message//Content") do
-                 nil ->
-                   ""
+             1 ->
+               [
+                 %{
+                   sender: doc |> Exml.get("//Message//Phone") |> normalize_msisdn,
+                   body:
+                     case doc |> Exml.get("//Message//Content") do
+                       nil ->
+                         ""
 
-                 b ->
-                   b |> String.trim()
-               end,
-             unixtime:
+                       b ->
+                         b |> String.trim()
+                     end,
+                   unixtime:
+                     doc
+                     |> Exml.get("//Message/Date")
+                     |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
+                     |> Timex.to_unix()
+                     |> Kernel.-(@tz_offset),
+                   index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
+                   new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
+                 }
+               ]
+
+             _ ->
                doc
-               |> Exml.get("//Message/Date")
-               |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
-               |> Timex.to_unix()
-               |> Kernel.-(@tz_offset),
-             index: doc |> Exml.get("//Message/Index") |> String.to_integer(),
-             new: doc |> Exml.get("//Message/Smstat") |> String.to_integer() == 0
-           }
-         ]
+               |> Exml.get("//Message/Index")
+               |> Enum.map(fn i ->
+                 %{
+                   sender: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
+                   body:
+                     case doc |> Exml.get("//Message[Index='#{i}']//Content") do
+                       nil ->
+                         ""
 
-       _ ->
-         doc
-         |> Exml.get("//Message/Index")
-         |> Enum.map(fn i ->
-           %{
-             sender: doc |> Exml.get("//Message[Index='#{i}']//Phone") |> normalize_msisdn,
-             body:
-               case doc |> Exml.get("//Message[Index='#{i}']//Content") do
-                 nil ->
-                   ""
+                       b ->
+                         b |> String.trim()
+                     end,
+                   unixtime:
+                     doc
+                     |> Exml.get("//Message[Index='#{i}']//Date")
+                     |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
+                     |> Timex.to_unix()
+                     |> Kernel.-(@tz_offset),
+                   index: i |> String.to_integer(),
+                   new:
+                     doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() ==
+                       0
+                 }
+               end)
+           end}
 
-                 b ->
-                   b |> String.trim()
-               end,
-             unixtime:
-               doc
-               |> Exml.get("//Message[Index='#{i}']//Date")
-               |> Timex.parse!("%Y-%m-%d %H:%M:%S", :strftime)
-               |> Timex.to_unix()
-               |> Kernel.-(@tz_offset),
-             index: i |> String.to_integer(),
-             new: doc |> Exml.get("//Message[Index='#{i}']//Smstat") |> String.to_integer() == 0
-           }
-         end)
-     end}
+        :ok = ConCache.put(:box_cache, "box_#{box}", results)
+        results
+
+      data ->
+        data
+    end
   end
 
   def empty_index do

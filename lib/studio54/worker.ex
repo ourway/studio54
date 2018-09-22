@@ -6,6 +6,7 @@ defmodule Studio54.Worker do
   require Logger
   alias Studio54.Db, as: Db
   @tick Application.get_env(:studio54, :tick)
+  @delay_on_record Application.get_env(:studio54, :delay_on_record)
   # @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
   def start(state) do
@@ -13,7 +14,7 @@ defmodule Studio54.Worker do
   end
 
   def start_saver(pid) do
-    Process.send_after(pid, {:"$gen_cast", {:message_saver}}, 500)
+    Process.send_after(pid, {:"$gen_cast", {:message_saver}}, 1000)
   end
 
   @impl true
@@ -23,31 +24,50 @@ defmodule Studio54.Worker do
 
   @impl true
   def handle_cast({:message_saver}, state) do
-    {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+    case Studio54.get_new_count() do
+      {:ok, 0} ->
+        :continue
 
-    msgs
-    |> Enum.map(fn m ->
-      {:atomic, events} = Db.get_active_events()
-      {:atomic, idx} = Db.add_incomming_message(m.sender, m.body, m.unixtime)
+      {:ok, n} ->
+        {:ok, _count, msgs} = Studio54.get_inbox(new: true)
 
-      Task.start_link(fn ->
-        Db.event_process(events, m, idx)
-      end)
+        joiner = ", "
 
-      m
-    end)
-    |> Enum.map(fn m ->
-      m.index
-    end)
-    |> Studio54.mark_as_read()
+        Logger.debug(
+          "got #{n} new messages from #{
+            for x <- msgs do
+              x.sender
+            end
+            |> Enum.join(joiner)
+          }."
+        )
 
-    Task.start_link(fn ->
-      Db.retire_expired_message_events()
-    end)
+        msgs
+        |> Enum.map(fn m ->
+          m.index
+        end)
+        |> Studio54.mark_as_read()
+
+        msgs
+        |> Enum.map(fn m ->
+          m.sender
+        end)
+        |> Enum.uniq()
+        |> Enum.map(fn sender ->
+          :ok =
+            ConCache.put(:message_cache, sender, %ConCache.Item{
+              ttl: @delay_on_record,
+              value: :ping
+            })
+        end)
+
+        Task.start_link(fn ->
+          Db.retire_expired_message_events()
+        end)
+    end
 
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
-
     Db.set_state(state)
     {:noreply, state}
   end
