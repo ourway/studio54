@@ -19,7 +19,6 @@ Add `:studio54` to applications and then run:
 
 ```bash
 mix studio54_setup
-mix studio54_setup 
 # or if you want to cleanup everything:
 mix studio54_setup clean
 
@@ -30,16 +29,14 @@ mix studio54_setup clean
 ```elixir
 
 config :studio54,                                                                                                                                                                          
-     host: "192.168.10.1",
-     name: "admin",
-     password: "admin",
-     delivery_webhook: "https://httpbin.org/post",
-     mo_webhook: "https://httpbin.org/post",
-     tick: 1000,
-     delay_on_record: 2000,
-     mno: "IR-TCI",
-     tz_offset: 12600,
-     msisdn: "989906767514
+     host: "192.168.10.1",  # device gateway ip
+     name: "admin",         # username
+     password: "admin",     # password
+     tick: 1000,            # new message check interval
+     delay_on_record: 2000, # wait time to handle multi part messages
+     mno: "IR-TCI",         # device sim mobile network operator
+     tz_offset: 12600,      # Timezone offset
+     msisdn: "989906767514  # device sim number
 ```
 
 ## Usage
