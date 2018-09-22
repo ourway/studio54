@@ -5,8 +5,7 @@ defmodule Studio54.Worker do
   use GenServer
   require Logger
   alias Studio54.Db, as: Db
-  @tick 1_000
-  # @mno Application.get_env(:studio54, :mno)
+  @tick Application.get_env(:studio54, :tick)
   # @mo_webhook Application.get_env(:studio54, :mo_webhook)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
   def start(state) do
@@ -25,10 +24,10 @@ defmodule Studio54.Worker do
   @impl true
   def handle_cast({:message_saver}, state) do
     {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-    {:atomic, events} = Db.get_active_events()
 
     msgs
     |> Enum.map(fn m ->
+      {:atomic, events} = Db.get_active_events()
       {:atomic, idx} = Db.add_incomming_message(m.sender, m.body, m.unixtime)
 
       Task.start_link(fn ->

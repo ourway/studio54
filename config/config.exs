@@ -31,6 +31,7 @@ config :studio54,
   password: "admin",
   delivery_webhook: "https://httpbin.org/post",
   mo_webhook: "https://httpbin.org/post",
+  tick: 5000,
   mno: "IR-TCI",
   tz_offset: 12600,
   msisdn: "989906767514"
