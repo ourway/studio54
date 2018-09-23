@@ -66,7 +66,10 @@ defmodule Studio54.DbSetup do
              :retire_if_not_match?,
              :result,
              :message,
-             :args
+             :args,
+             :timeout_module,
+             :timeout_function,
+             :timeout_args
            ],
            index: [:target, :sender, :retired?, :message]
          ]) do

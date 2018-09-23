@@ -50,12 +50,9 @@ defmodule Studio54.Db do
     {:atomic, :ok}
   end
 
-
-
   def get_last_message_body_from(sender) do
     get_last_message_from(sender) |> elem(2)
   end
-
 
   def get_last_message_from(sender) do
     get_messages_from(sender) |> List.last()
@@ -100,6 +97,9 @@ defmodule Studio54.Db do
       iex> Studio54.Db.add_message_event 98912028207, 60, IO, :inspect, "[\\d]{5}", true, []
       {:ok, idx}
 
+      ## with expire call backs:
+      iex> Studio54.Db.add_message_event("989120228207", 30, Studio54, :test_func, "pink2", true, [:cool], IO, :inspect, [:oh_sorry])
+
       ```
 
 
@@ -111,9 +111,13 @@ defmodule Studio54.Db do
         function,
         match \\ nil,
         ret_if_no_match \\ true,
-        args \\ []
+        args \\ [],
+        timeout_module \\ nil,
+        timeout_function \\ nil,
+        timeout_args \\ []
       )
-      when is_integer(timeout) and timeout > 0 and not is_nil(module) and is_atom(function) do
+      when is_integer(timeout) and timeout > 0 and not is_nil(module) and is_atom(function) and
+             is_list(args) and is_list(timeout_args) do
     regex =
       case match do
         nil ->
@@ -131,7 +135,8 @@ defmodule Studio54.Db do
       :mnesia.transaction(fn ->
         pack =
           {MessageEvent, idx, now, target |> Studio54.normalize_msisdn(), self(), timeout, module,
-           function, false, regex, ret_if_no_match, nil, nil, args}
+           function, false, regex, ret_if_no_match, nil, nil, args, timeout_module,
+           timeout_function, timeout_args}
 
         :ok = :mnesia.write(pack)
       end)
@@ -222,6 +227,19 @@ defmodule Studio54.Db do
       now > timeout + unixtime
     end)
     |> Enum.map(fn me ->
+      timeout_module = me |> elem(14)
+      timeout_function = me |> elem(15)
+      timeout_args = me |> elem(16)
+
+      try do
+        if timeout_module != nil and timeout_function != nil do
+          apply(timeout_module, timeout_function, timeout_args)
+        end
+      rescue
+        e ->
+          IO.inspect(e)
+      end
+
       retire_message_event(me |> elem(1))
     end)
 
@@ -240,6 +258,7 @@ defmodule Studio54.Db do
       module = e |> elem(6)
       function = e |> elem(7)
       args = e |> elem(13)
+
       regex = e |> elem(9)
       ret_if_no_match = e |> elem(10)
 

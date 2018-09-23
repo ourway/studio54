@@ -31,8 +31,7 @@ defmodule Studio54Test do
 
   describe "database" do
     test "adding incomming messages is successful" do
-      {status, idx} = Db.add_incomming_message("989120228207", "wow, it's a test")
-      assert status == :atomic
+      assert {:atomic, :ok} == Db.add_incomming_message("989120228207")
     end
 
     test "adding message event working" do
@@ -43,22 +42,17 @@ defmodule Studio54Test do
     end
 
     test "reading messages table is ok" do
-      {:atomic, idx} = Db.add_incomming_message("989120228207", "wow, it's second test")
+      {:atomic, :ok} = Db.add_incomming_message("989120228207")
       {:ok, msgs} = Db.read_incomming_messages_from("989120228207")
-      {:atomic, msg} = Db.get_message(idx)
-      assert elem(msg, 2) =~ "wow"
-      assert length(msgs) >= 1
     end
 
     test "updating message event result is ok" do
-      {:atomic, idx} = Db.add_incomming_message("989120228207", "wow, it's second test")
+      {:atomic, :ok} = Db.add_incomming_message("989120228207")
       {:ok, e_idx} = Db.add_message_event("989120228207", 3, IO, :inspect, "\\d{5}")
       assert {:atomic, :ok} == Db.update_message_event_result(e_idx, %{})
       {:atomic, ev} = Db.get_message_event(e_idx)
       assert elem(ev, 11) == %{}
-      assert {:atomic, :ok} == Db.update_message_event_message(e_idx, idx)
       {:atomic, ev} = Db.get_message_event(e_idx)
-      assert elem(ev, 12) == idx
     end
 
     test "retiring events works correct" do
