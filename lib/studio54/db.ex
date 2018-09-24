@@ -26,10 +26,9 @@ defmodule Studio54.Db do
 
   def add_incomming_message(sender) do
     # wait 500 miliseconds to finish multipart ones
-    Studio54.get_last_n_messages_from(sender, 10)
+    Studio54.get_last_n_messages_from(sender, 50)
     |> Enum.map(fn m ->
       idx = "#{m.unixtime}-#{sender}"
-      {:atomic, events} = get_active_events()
 
       {:atomic, :ok} =
         :mnesia.transaction(fn ->
@@ -40,12 +39,11 @@ defmodule Studio54.Db do
           :ok = :mnesia.write(pack)
         end)
 
-      Task.start_link(fn ->
-        event_process(events, m, idx)
-      end)
-
-      Logger.debug("Added incomming message from #{idx} to database.")
+      {:atomic, events} = get_active_events()
+      event_process(events, m, idx)
     end)
+
+    Logger.debug("saved incomming message(s) from #{sender}.")
 
     {:atomic, :ok}
   end
@@ -98,7 +96,8 @@ defmodule Studio54.Db do
       {:ok, idx}
 
       ## with expire call backs:
-      iex> Studio54.Db.add_message_event("989120228207", 30, Studio54, :test_func, "pink2", true, [:cool], IO, :inspect, [:oh_sorry])
+      iex> Studio54.Db.add_message_event("989120228207", 30, 
+        Studio54, :test_func, "pink2", true, [:cool], IO, :inspect, [:oh_sorry])
 
       ```
 
@@ -180,13 +179,7 @@ defmodule Studio54.Db do
   def is_active_event(idx) do
     {:atomic, mev} = get_message_event(idx)
 
-    case mev |> elem(8) do
-      false ->
-        true
-
-      _ ->
-        false
-    end
+    elem(mev, 8) == false
   end
 
   def retire_message_event(idx) do

@@ -14,7 +14,7 @@ defmodule Studio54.Worker do
   end
 
   def start_saver(pid) do
-    Process.send_after(pid, {:"$gen_cast", {:message_saver}}, 1000)
+    Process.send_after(pid, {:"$gen_cast", {:message_saver, pid}}, 1000)
   end
 
   @impl true
@@ -23,13 +23,25 @@ defmodule Studio54.Worker do
   end
 
   @impl true
-  def handle_cast({:message_saver}, state) do
+  def handle_cast({:message_saver, pid}, state) do
     case Studio54.get_new_count() do
       {:ok, 0} ->
         :continue
 
       {:ok, n} ->
-        {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+        {:ok, count, msgs} = Studio54.get_inbox(new: true)
+
+        msgs =
+          case n == count do
+            true ->
+              msgs
+
+            false ->
+              Process.exit(pid, :try_again)
+              # Process.sleep(@delay_on_record)
+              # {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+              # msgs
+          end
 
         joiner = ", "
 
@@ -64,7 +76,7 @@ defmodule Studio54.Worker do
 
     :ok = Db.retire_expired_message_events()
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
-    Process.send_after(worker_pid, {:"$gen_cast", {:message_saver}}, @tick)
+    Process.send_after(worker_pid, {:"$gen_cast", {:message_saver, pid}}, @tick)
     Db.set_state(state)
     {:noreply, state}
   end

@@ -26,7 +26,7 @@ config :mnesia,
   dir: '/tmp/studio54_#{Mix.env()}'
 
 config :studio54,
-  host: "192.168.10.1",
+  host: "192.168.8.1",
   name: "admin",
   password: "admin",
   delivery_webhook: "https://httpbin.org/post",

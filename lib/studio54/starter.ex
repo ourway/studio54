@@ -8,6 +8,7 @@ defmodule Studio54.Starter do
   require Logger
   alias Studio54.Worker, as: Worker
   alias Studio54.Db, as: Db
+  @delay_on_record Application.get_env(:studio54, :delay_on_record)
   # @delivery_webhook Application.get_env(:studio54, :delivery_webhook)
 
   def start_link(args) do
@@ -67,9 +68,23 @@ defmodule Studio54.Starter do
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, _worker, _reason}, state) do
-    Logger.warn("Studio54 message core worker went down! Starting again after 1 second.")
-    _time = Process.send_after(self(), {:"$gen_cast", {:start_monitor}}, 1_000)
+  def handle_info({:DOWN, _ref, :process, worker, reason}, state) do
+    timeout =
+      case reason do
+        :try_again ->
+          Logger.debug("Studio5 message core #{:erlang.pid_to_list(worker)} going to restart.
+          Starting again after #{@delay_on_record * 2} miliseconds.")
+          @delay_on_record * 2
+
+        _ ->
+          Logger.warn(
+            "Studio5 message core #{:erlang.pid_to_list(worker)} went down! Starting again after 1 second."
+          )
+
+          :timer.seconds(1)
+      end
+
+    _time = Process.send_after(self(), {:"$gen_cast", {:start_monitor}}, timeout)
 
     {:noreply, state}
   end

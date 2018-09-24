@@ -6,6 +6,9 @@ defmodule Studio54 do
   """
   require Exml
   # alias Studio54.Worker, as: Worker
+
+  @rescue_sleep_timeout :timer.seconds(2)
+
   @name Application.get_env(:studio54, :name)
   @password Application.get_env(:studio54, :password)
   @host Application.get_env(:studio54, :host)
@@ -77,19 +80,25 @@ defmodule Studio54 do
       __RequestVerificationToken: stdata.token
     ]
 
-    %HTTPotion.Response{
-      :body => _body,
-      :headers => %HTTPotion.Headers{
-        :hdrs => %{
-          "set-cookie" => cookie,
-          "__requestverificationtokenone" => token1,
-          "__requestverificationtokentwo" => token2
-        }
-      },
-      :status_code => 200
-    } = HTTPotion.post(@loginpath, body: postdata, headers: login_headers, timeout: 30_000)
+    try do
+      %HTTPotion.Response{
+        :body => _body,
+        :headers => %HTTPotion.Headers{
+          :hdrs => %{
+            "set-cookie" => cookie,
+            "__requestverificationtokenone" => token1,
+            "__requestverificationtokentwo" => token2
+          }
+        },
+        :status_code => 200
+      } = HTTPotion.post(@loginpath, body: postdata, headers: login_headers, timeout: 30_000)
 
-    %{sid: cookie, token1: token1, token2: token2}
+      %{sid: cookie, token1: token1, token2: token2}
+    rescue
+      MatchError ->
+        Process.sleep(@rescue_sleep_timeout)
+        login()
+    end
   end
 
   def get_headers do
@@ -124,15 +133,21 @@ defmodule Studio54 do
     </request>
     """
 
-    %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@smspath, body: postdata, headers: headers, timeout: 30_000)
+    try do
+      %HTTPotion.Response{:body => body, :status_code => 200} =
+        HTTPotion.post(@smspath, body: postdata, headers: headers, timeout: 30_000)
 
-    case body |> Exml.parse() |> Exml.get("//response") do
-      "OK" ->
-        {:ok, true}
+      case body |> Exml.parse() |> Exml.get("//response") do
+        "OK" ->
+          {:ok, true}
 
-      nil ->
-        {:error, false}
+        nil ->
+          {:error, false}
+      end
+    rescue
+      MatchError ->
+        Process.sleep(@rescue_sleep_timeout)
+        send_sms(sender, text)
     end
   end
 
@@ -325,32 +340,37 @@ defmodule Studio54 do
   def empty_index do
     headers = get_headers()
     {:ok, _count, messages} = get_inbox(new: false)
-    # {:ok, _count, messages2} = get_outbox()
-    # {:ok, _count, messages3} = get_box(3)
+    {:ok, _count, messages2} = get_outbox()
+    {:ok, _count, messages3} = get_box(3)
 
-    # (messages ++ messages2 ++ messages3)
-    indexes =
-      messages
-      |> Enum.map(fn m ->
-        "<Index>#{m.index}</Index>"
-      end)
-      |> Enum.join()
+    # messages
+    (messages ++ messages2 ++ messages3)
+    |> Enum.chunk_every(20)
+    |> Enum.map(fn chunk ->
+      indexes =
+        chunk
+        |> Enum.map(fn m ->
+          "<Index>#{m.index}</Index>"
+        end)
+        |> Enum.join()
 
-    postdata = """
-    <?xml version: "1.0" encoding="UTF-8"?>
-      <request>#{indexes}</request>
-    """
+      postdata = """
+      <?xml version: "1.0" encoding="UTF-8"?>
+        <request>#{indexes}</request>
+      """
 
-    %HTTPotion.Response{:body => body, :status_code => 200} =
-      HTTPotion.post(@deletepath, body: postdata, headers: headers, timeout: 30_000)
+      %HTTPotion.Response{:body => body, :status_code => 200} =
+        HTTPotion.post(@deletepath, body: postdata, headers: headers, timeout: 30_000)
 
-    case body |> Exml.parse() |> Exml.get("//code") do
-      nil ->
-        {:ok, true}
+      case body |> Exml.parse() |> Exml.get("//code") do
+        nil ->
+          {:ok, true}
 
-      c ->
-        {:error, c}
-    end
+        c ->
+          {:error, c}
+      end
+        Process.sleep @rescue_sleep_timeout
+    end)
   end
 
   def get_last_message_from(sender) do
