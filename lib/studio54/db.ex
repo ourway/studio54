@@ -25,8 +25,7 @@ defmodule Studio54.Db do
   end
 
   def add_incomming_message(sender) do
-    # wait 500 miliseconds to finish multipart ones
-    Studio54.get_last_n_messages_from(sender, 50)
+    Studio54.get_last_n_messages_from(sender, 25)
     |> Enum.map(fn m ->
       idx = "#{m.unixtime}-#{sender}"
 

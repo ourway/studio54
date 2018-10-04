@@ -37,6 +37,9 @@ defmodule Studio54.Worker do
               msgs
 
             false ->
+              # why exit? because probably we have encounterd a situation
+              # where we have received a multipart message and it's yet to
+              # complete.  so we need to wait a bit more.
               Process.exit(pid, :try_again)
               # Process.sleep(@delay_on_record)
               # {:ok, _count, msgs} = Studio54.get_inbox(new: true)
