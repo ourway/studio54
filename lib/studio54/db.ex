@@ -25,24 +25,26 @@ defmodule Studio54.Db do
   end
 
   def add_incomming_message(sender) do
-    Studio54.get_last_n_messages_from(sender, 25)
+    Studio54.get_last_n_messages_from(sender, 20)
     |> Enum.map(fn m ->
-      idx = "#{m.unixtime}-#{sender}"
+      idx = "#{m.sender}-#{m.unixtime}-#{m.index}"
 
       {:atomic, :ok} =
         :mnesia.transaction(fn ->
           pack =
-            {Message, idx, m.body, sender |> Studio54.normalize_msisdn(),
-             @receiver |> Studio54.normalize_msisdn(), m.unixtime}
+            {Message, idx, m.body, m.sender, @receiver |> Studio54.normalize_msisdn(), m.unixtime}
 
           :ok = :mnesia.write(pack)
         end)
 
       {:atomic, events} = get_active_events()
       event_process(events, m, idx)
+      Studio54.delete_message(m.index)
+      Logger.debug("saved incomming message(s) from #{m.sender}.")
+      m.index
     end)
 
-    Logger.debug("saved incomming message(s) from #{sender}.")
+    # |> Studio54.mark_as_read()
 
     {:atomic, :ok}
   end

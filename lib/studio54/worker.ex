@@ -29,39 +29,23 @@ defmodule Studio54.Worker do
         :continue
 
       {:ok, n} ->
-        {:ok, count, msgs} = Studio54.get_inbox(new: true)
+        {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+        Logger.debug("Got #{n} new message(s).")
 
-        msgs =
-          case n == count do
-            true ->
-              msgs
+        # msgs =
+        #  case n == count do
+        #    true ->
+        #      msgs
 
-            false ->
-              # why exit? because probably we have encounterd a situation
-              # where we have received a multipart message and it's yet to
-              # complete.  so we need to wait a bit more.
-              Process.exit(pid, :try_again)
-              # Process.sleep(@delay_on_record)
-              # {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-              # msgs
-          end
-
-        joiner = ", "
-
-        Logger.debug(
-          "got #{n} new messages from #{
-            for x <- msgs do
-              x.sender
-            end
-            |> Enum.join(joiner)
-          }."
-        )
-
-        msgs
-        |> Enum.map(fn m ->
-          m.index
-        end)
-        |> Studio54.mark_as_read()
+        #    false ->
+        #      # why exit? because probably we have encounterd a situation
+        #      # where we have received a multipart message and it's yet to
+        #      # complete.  so we need to wait a bit more.
+        #      Process.exit(pid, :try_again)
+        #      # Process.sleep(@delay_on_record)
+        #      # {:ok, _count, msgs} = Studio54.get_inbox(new: true)
+        #      # msgs
+        #  end
 
         msgs
         |> Enum.map(fn m ->
@@ -75,6 +59,8 @@ defmodule Studio54.Worker do
               value: :ping
             })
         end)
+
+        msgs |> Enum.map(fn m -> m.index end) |> Studio54.mark_as_read()
     end
 
     :ok = Db.retire_expired_message_events()

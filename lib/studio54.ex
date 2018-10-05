@@ -369,8 +369,30 @@ defmodule Studio54 do
         c ->
           {:error, c}
       end
-        Process.sleep @rescue_sleep_timeout
+
+      Process.sleep(@rescue_sleep_timeout)
     end)
+  end
+
+  def delete_message(index) do
+    headers = get_headers()
+    patch = "<Index>#{index}</Index>"
+
+    postdata = """
+    <?xml version: "1.0" encoding="UTF-8"?>
+      <request>#{patch}</request>
+    """
+
+    %HTTPotion.Response{:body => body, :status_code => 200} =
+      HTTPotion.post(@deletepath, body: postdata, headers: headers, timeout: 30_000)
+
+    case body |> Exml.parse() |> Exml.get("//code") do
+      nil ->
+        {:ok, true}
+
+      c ->
+        {:error, c}
+    end
   end
 
   def get_last_message_from(sender) do
@@ -382,6 +404,13 @@ defmodule Studio54 do
     |> elem(2)
     |> Enum.filter(fn m -> m.sender == "#{sender}" |> normalize_msisdn end)
     |> Enum.take(n)
+  end
+
+  def get_message_by_index(n) do
+    Studio54.get_inbox(new: false)
+    |> elem(2)
+    |> Enum.filter(fn m -> m.index == n end)
+    |> List.first()
   end
 
   def test_func(:cool, data) do
