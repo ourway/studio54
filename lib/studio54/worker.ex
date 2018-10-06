@@ -30,7 +30,7 @@ defmodule Studio54.Worker do
 
       {:ok, n} ->
         {:ok, _count, msgs} = Studio54.get_inbox(new: true)
-        Logger.debug("Got #{n} new message(s).")
+        Logger.debug(fn -> "Got #{n} new message(s)." end)
 
         # msgs =
         #  case n == count do
@@ -48,22 +48,20 @@ defmodule Studio54.Worker do
         #  end
 
         msgs
-        |> Enum.map(fn m ->
-          m.sender
-        end)
         |> Enum.uniq()
-        |> Enum.map(fn sender ->
+        |> Enum.map(fn m ->
           :ok =
-            ConCache.put(:message_cache, sender, %ConCache.Item{
+            ConCache.put(:message_cache, m.sender, %ConCache.Item{
               ttl: @delay_on_record,
               value: :ping
             })
-        end)
 
-        msgs |> Enum.map(fn m -> m.index end) |> Studio54.mark_as_read()
+          m.index
+        end)
+        |> Studio54.mark_as_read()
     end
 
-    :ok = Db.retire_expired_message_events()
+    Db.retire_expired_message_events()
     [{_, worker_pid}] = Registry.lookup(Studio54.Processes, "worker")
     Process.send_after(worker_pid, {:"$gen_cast", {:message_saver, pid}}, @tick)
     Db.set_state(state)

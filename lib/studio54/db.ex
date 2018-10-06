@@ -25,36 +25,40 @@ defmodule Studio54.Db do
   end
 
   def add_incomming_message(sender) do
-    Studio54.get_last_n_messages_from(sender, 20)
-    |> Enum.map(fn m ->
-      idx = "#{m.sender}-#{m.unixtime}-#{m.index}"
+    indexes =
+      Enum.map(
+        Studio54.get_last_n_messages_from(sender, 20),
+        fn m ->
+          idx = "#{m.sender}-#{m.unixtime}-#{m.index}"
 
-      {:atomic, :ok} =
-        :mnesia.transaction(fn ->
-          pack =
-            {Message, idx, m.body, m.sender, @receiver |> Studio54.normalize_msisdn(), m.unixtime}
+          {:atomic, :ok} =
+            :mnesia.transaction(fn ->
+              pack =
+                {Message, idx, m.body, m.sender, @receiver |> Studio54.normalize_msisdn(),
+                 m.unixtime}
 
-          :ok = :mnesia.write(pack)
-        end)
+              :ok = :mnesia.write(pack)
+            end)
 
-      {:atomic, events} = get_active_events()
-      event_process(events, m, idx)
-      Studio54.delete_message(m.index)
-      Logger.debug("saved incomming message(s) from #{m.sender}.")
-      m.index
-    end)
+          {:atomic, events} = get_active_events()
+          event_process(events, m, idx)
+          Studio54.delete_message(m.index)
+          Logger.debug(fn -> "saved incomming message(s) from #{m.sender}." end)
+          m.index
+        end
+      )
 
     # |> Studio54.mark_as_read()
 
-    {:atomic, :ok}
+    {:atomic, :ok, indexes}
   end
 
   def get_last_message_body_from(sender) do
-    get_last_message_from(sender) |> elem(2)
+    elem(get_last_message_from(sender), 2)
   end
 
   def get_last_message_from(sender) do
-    get_messages_from(sender) |> List.last()
+    List.last(get_messages_from(sender))
   end
 
   def get_messages_from(sender) do
@@ -189,7 +193,10 @@ defmodule Studio54.Db do
     case is_active_event(idx) do
       true ->
         pack = mev |> put_elem(8, true)
-        Logger.debug("retiring message event: #{idx}")
+
+        Logger.debug(fn ->
+          "retiring message event: #{idx}"
+        end)
 
         {:atomic, :ok} =
           :mnesia.transaction(fn ->
@@ -231,13 +238,12 @@ defmodule Studio54.Db do
         end
       rescue
         e ->
-          IO.inspect(e)
+          Logger.debug(fn -> e end)
+          :continue
       end
 
       retire_message_event(me |> elem(1))
     end)
-
-    :ok
   end
 
   def event_process(events, m, idx) do
@@ -254,7 +260,7 @@ defmodule Studio54.Db do
       args = e |> elem(13)
 
       regex = e |> elem(9)
-      ret_if_no_match = e |> elem(10)
+      _ret_if_no_match = e |> elem(10)
 
       case regex do
         nil ->
@@ -277,21 +283,14 @@ defmodule Studio54.Db do
               update_message_event_message(e_idx, idx)
               result = apply(module, function, args ++ [message])
               update_message_event_result(e_idx, result)
-
-              case ret_if_no_match do
-                true ->
-                  e_idx |> retire_message_event()
-
-                false ->
-                  :continue
-              end
+              e_idx |> retire_message_event()
 
             false ->
               :continue
           end
       end
-    end)
 
-    :ok
+      :ok
+    end)
   end
 end

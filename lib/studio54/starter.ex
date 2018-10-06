@@ -72,8 +72,13 @@ defmodule Studio54.Starter do
     timeout =
       case reason do
         :try_again ->
-          Logger.debug("Studio5 message core #{:erlang.pid_to_list(worker)} going to restart.
-          Starting again after #{@delay_on_record * 2} miliseconds.")
+          Logger.debug(fn ->
+            """
+            Studio5 message core #{:erlang.pid_to_list(worker)} going to restart.
+            Starting again after #{@delay_on_record * 2} miliseconds.
+            """
+          end)
+
           @delay_on_record * 2
 
         _ ->

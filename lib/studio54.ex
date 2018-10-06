@@ -41,7 +41,7 @@ defmodule Studio54 do
   """
   def get_device_features do
     headers = get_headers()
-    doc = HTTPotion.get(@moduleswitchpath, headers: headers) |> Map.get(:body) |> Exml.parse()
+    doc = @moduleswitchpath |> HTTPotion.get(headers: headers) |> Map.get(:body) |> Exml.parse()
     sms? = doc |> Exml.get("//sms_enabled")
     ussd? = doc |> Exml.get("//ussd_enabled")
     %{sms: sms? == "1", ussd: ussd? == "1"}
@@ -51,7 +51,7 @@ defmodule Studio54 do
     Get SessionID cookie and Token.
   """
   def get_ses_token_info do
-    doc = HTTPotion.get(@tokenpath) |> Map.get(:body) |> Exml.parse()
+    doc = @tokenpath |> HTTPotion.get() |> Map.get(:body) |> Exml.parse()
     sid = doc |> Exml.get("//SesInfo")
     token = doc |> Exml.get("//TokInfo")
     %{sid: sid, token: token}
@@ -59,8 +59,8 @@ defmodule Studio54 do
 
   def login do
     stdata = get_ses_token_info()
-    passhash = gethash(@password) |> Base.encode64()
-    psd = gethash(@name <> passhash <> stdata.token) |> Base.encode64()
+    passhash = @password |> gethash |> Base.encode64()
+    psd = (@name <> passhash <> stdata.token) |> gethash |> Base.encode64()
 
     postdata = """
       <?xml version: "1.0" encoding="UTF-8"?>
@@ -396,7 +396,7 @@ defmodule Studio54 do
   end
 
   def get_last_message_from(sender) do
-    get_last_n_messages_from(sender, 1) |> List.first()
+    sender |> get_last_n_messages_from(1) |> List.first()
   end
 
   def get_last_n_messages_from(sender, n) do
@@ -413,7 +413,7 @@ defmodule Studio54 do
     |> List.first()
   end
 
-  def test_func(:cool, data) do
-    IO.inspect(data)
+  def test_func(:cool, _data) do
+    # IO.inspect(data)
   end
 end
